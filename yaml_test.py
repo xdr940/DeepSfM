@@ -2,6 +2,7 @@ import yaml
 
 
 class YamlHandler:
+
     def __init__(self, file):
         def dataset():
             self.a = 'bbb'
@@ -10,8 +11,11 @@ class YamlHandler:
             self.e='eee'
         dataset()
         model()
+        self.out()
         self.file = file
-
+    def out(self):
+        self.g='ggg'
+        print(self.g)
     def read_yaml(self, encoding='utf-8'):
         """读取yaml数据"""
         with open(self.file, encoding=encoding) as f:

@@ -15,7 +15,7 @@ import torch.nn.functional as F
 
 
 
-def disp_to_depth(disp, min_depth, max_depth):
+def disp_to_depth(disp, min_depth=0.1, max_depth=80.0):
     """Convert network's sigmoid output into depth prediction
     The formula for this conversion is given in the 'additional considerations'
     section of the paper.
@@ -258,22 +258,25 @@ class SSIM(nn.Module):
 def compute_depth_errors(gt, pred):
     """Computation of error metrics between predicted and ground truth depths
     """
+
+    metrics={}
+
     thresh = torch.max((gt / pred), (pred / gt))
-    a1 = (thresh < 1.25     ).float().mean()
-    a2 = (thresh < 1.25 ** 2).float().mean()
-    a3 = (thresh < 1.25 ** 3).float().mean()
+    metrics['a1'] = (thresh < 1.25     ).float().mean()
+    metrics['a2'] = (thresh < 1.25 ** 2).float().mean()
+    metrics['a3'] = (thresh < 1.25 ** 3).float().mean()
 
     rmse = (gt - pred) ** 2
-    rmse = torch.sqrt(rmse.mean())
+    metrics['rmse'] = torch.sqrt(rmse.mean())
 
     rmse_log = (torch.log(gt) - torch.log(pred)) ** 2
-    rmse_log = torch.sqrt(rmse_log.mean())
+    metrics['rmse_log'] = torch.sqrt(rmse_log.mean())
 
-    abs_rel = torch.mean(torch.abs(gt - pred) / gt)
+    metrics['abs_rel'] = torch.mean(torch.abs(gt - pred) / gt)
 
-    sq_rel = torch.mean((gt - pred) ** 2 / gt)
+    metrics['sq_rel'] = torch.mean((gt - pred) ** 2 / gt)
 
-    return abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3
+    return metrics
 
 
 class PhotometricError():

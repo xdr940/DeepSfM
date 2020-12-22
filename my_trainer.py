@@ -25,187 +25,267 @@ from datasets import CustomMonoDataset
 import networks
 from utils.logger import TermLogger
 
+def set_mode(models, mode):
+    """Convert all models to training mode
+    """
+    for m in models.values():
+        if mode == 'train':
+            m.train()
+        else:
+            m.eval()
+def compute_reprojection_loss(ssim, pred, target):
+            """Computes reprojection loss between a batch of predicted and target images
+            """
+            abs_diff = torch.abs(target - pred)
+            l1_loss = abs_diff.mean(1, True)  # [b,1,h,w]
 
+            ssim_loss = ssim(pred, target).mean(1, True)
+            reprojection_loss = 0.85 * ssim_loss + 0.15 * l1_loss
+
+            return reprojection_loss  # [b,1,h,w]
 class Trainer:
     def __init__(self, options):
-        self.opt = options
+        def model_init(mopt):
+            # models
+            # details
+            models = {}  # dict
+            self.scales = mopt['scales']
+            self.num_input_frames = len(mopt['frame_idxs'])
+            self.num_pose_frames = 2
+
+            # depth encoder
+            init_weight_path = Path(mopt['init_weight_path'])
+            if mopt['init_weight_path']:
+                print("depth encoder pretrained: " + self.opt.weights_init)
+                print("depth encoder load:" + self.opt.encoder_path)
+            else:
+                print("depth encoder pretrained: " + self.opt.weights_init)
+
+
+            #encoder
+            models["encoder"] = networks.ResnetEncoder(
+                num_layers=18,#resnet18
+                pretrained=True,
+                encoder_path=init_weight_path/'encoder.pth')
+            models["encoder"].to(self.device)
+
+            # depth decoder
+            models["depth"] = networks.DepthDecoder(
+                num_ch_enc = models["encoder"].num_ch_enc,
+                scales=mopt['scales'])
+            models["depth"].to(self.device)
+
+
+            # pose encoder
+            print("pose encoder pretrained or scratch: " + self.opt.weights_init)
+            print("pose encoder load:" + self.opt.encoder_path)
+            models["pose_encoder"] = networks.ResnetEncoder(
+                num_layers=18,
+                pretrained=True,
+                num_input_images=2,
+                encoder_path=init_weight_path/'pose_encoder')
+            models["pose_encoder"].to(self.device)
+
+            # pose decoder
+            models["pose"] = networks.PoseDecoder(
+                models["pose_encoder"].num_ch_enc,
+                num_input_features=1,
+                num_frames_to_predict_for=2)
+            models["pose"].to(self.device)
+
+
+            # posecnn
+            # print("posecnn pretrained or scratch: " + self.opt.weights_init)
+            # print("posecnn load:" + self.opt.posecnn_path)
+            # self.models['posecnn'] = networks.PoseNet().to(self.device)
+            parameters_to_train = []
+            for k, v in models.items():
+                parameters_to_train += list(v.parameters())
+
+            model_optimizer = optim.Adam(parameters_to_train, mopt['lr'])
+
+            model_lr_scheduler = optim.lr_scheduler.StepLR(
+                model_optimizer,
+                mopt['scheduler_step_size'],
+                0.1
+            )#end models arch
+
+            #model load
+            if mopt['init_weight_path']:
+                load_weights_folder = Path(mopt['init_weight_path'])
+
+                for name in mopt['load_mnames']:
+                    path = load_weights_folder / name + '.pth'
+                    model_dict = self.models[name].state_dict()
+                    pretrained_dict = torch.load(path)
+                    pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
+                    model_dict.update(pretrained_dict)
+                    self.models[name].load_state_dict(model_dict)
+                print("Loading {} weights...".format(mopt['load_mnames']))
+
+                # loading adam state
+                optimizer_load_path = load_weights_folder / "adam.pth"
+                optimizer_dict = torch.load(optimizer_load_path)
+                self.model_optimizer.load_state_dict(optimizer_dict)
+
+
+            return models,model_optimizer,model_lr_scheduler
+        def dataset_init(dopt):
+
+            # datasets setting
+            datasets_dict = {"kitti": KITTIRAWDataset,
+                             "kitti_odom": KITTIOdomDataset,
+                             "mc": MCDataset,
+                             "custom_mono": CustomMonoDataset,
+                             "visdrone": VSDataset}
+            if dopt['type'] in datasets_dict.keys():
+                dataset = datasets_dict[dopt['type']]  # 选择建立哪个类，这里kitti，返回构造函数句柄
+            else:
+                dataset = CustomMonoDataset
+
+
+            split_path = Path(dopt['split']['path'])
+            train_path = split_path / dopt['split']['train_file']
+            val_path = split_path / dopt['split']['val_file']
+
+
+
+            train_filenames = readlines(train_path)
+            val_filenames = readlines(val_path)
+            img_ext = '.png' if self.opt.png else '.jpg'
+
+            num_train_samples = len(train_filenames)
+            self.num_total_steps = num_train_samples // self.opt.batch_size * self.opt.num_epochs
+
+            # train loader
+            train_dataset = dataset(  # KITTIRAWData
+                data_path = dopt['path'],
+                filenames = train_filenames,
+                height=self.opt.height,
+                width=self.opt.width,
+                frame_idxs=self.frame_idxs,
+                num_scales = 4,
+                is_train=True,
+                img_ext='.png'
+            )
+            train_loader = DataLoader(  # train_datasets:KITTIRAWDataset
+                dataset=train_dataset,
+                batch_size=dopt['batch_size'],
+                shuffle=False,
+                num_workers=dopt['num_workers'],
+                pin_memory=True,
+                drop_last=True
+            )
+            # val loader
+            val_dataset = dataset(
+                data_path=dopt['path'],
+                filenames=val_filenames,
+                height=self.opt.height,
+                width=self.opt.width,
+                frame_idxs = self.frame_idxs,
+                num_scales = 4,
+                is_train=False,
+                img_ext=img_ext)
+
+            val_loader = DataLoader(
+                dataset=val_dataset,
+                batch_size=dopt['batch_size'],
+                shuffle=True,
+                num_workers=dopt['num_workers'],
+                pin_memory=True,
+                drop_last=True)
+
+            self.val_iter = iter(val_loader)
+            print("Using split:{}, train_files:{}, val_files:{}".format(split_path,
+                                                                        dopt['split']['train_file'],
+                                                                        dopt['split']['val_file']
+                                                                        ))
+            print("There are {:d} training items and {:d} validation items\n".format(
+                len(train_dataset), len(val_dataset)))
+
+            return train_loader, val_loader
+
+        #self.opt = options
         self.start_time = datetime.datetime.now().strftime("%m-%d-%H:%M")
-        self.checkpoints_path = Path(self.opt.log_dir)/self.start_time
+        self.checkpoints_path = Path(options['settings']['log_dir'])/self.start_time
+        self.frame_idxs = options['frame_idxs']# all around
+        self.scales = options['scales']
+        self.feed_width = options['feed_width']
+        self.feed_height = options['feed_height']
+
+        self.full_height = options['full_height']
+        self.full_width = options['full_width']
+
+        self.min_depth = options['min_depth']
+        self.max_depth = options['max_depth']
+
+        self.tb_log_frequency = options['tb_log_frequency']
+        self.weights_save_frequency = options['weights_save_frequency']
+
         #save model and events
 
 
         #args assert
-        assert self.opt.height % 32 == 0, "'height' must be a multiple of 32"
-        assert self.opt.width % 32 == 0, "'width' must be a multiple of 32"
 
-        self.device = torch.device("cpu" if self.opt.no_cuda else "cuda")
-
-        assert self.opt.frame_ids[0] == 0, "frame_ids must start with 0"
+        self.device = torch.device("cpu" if options['cuda'] else "cuda")
+        self.models, self.model_optimizer,self.model_lr_scheduler = model_init(options['model'])
+        self.train_loader, self.val_loader = dataset_init(options['dataset'])
 
 
-    #models
-        #details
-        self.models = {}#dict
-        self.num_scales = len(self.opt.scales)
-        self.num_input_frames = len(self.opt.frame_ids)
-        self.num_pose_frames = 2
-
-
-        #depth encoder
-        if self.opt.load_weights_folder:
-            pass
-        else:
-            print("depth encoder pretrained or scratch: "+self.opt.weights_init)
-            print("depth encoder load:"+self.opt.encoder_path)
-        self.models["encoder"] = networks.ResnetEncoder(
-            num_layers=self.opt.num_layers,
-            pretrained=self.opt.weights_init == "pretrained",
-            encoder_path=self.opt.encoder_path)
-        self.models["encoder"].to(self.device)
-
-        #depth decoder
-        self.models["depth"] = networks.DepthDecoder(
-            self.models["encoder"].num_ch_enc, self.opt.scales)
-        self.models["depth"].to(self.device)
-
-
-
-        if self.opt.pose_arch=='en_decoder':
-            # pose encoder
-            if self.opt.load_weights_folder:
-                pass
-            else:
-                print("pose encoder pretrained or scratch: " + self.opt.weights_init)
-                print("pose encoder load:" + self.opt.encoder_path)
-            self.models["pose_encoder"] = networks.ResnetEncoder(
-                                            self.opt.num_layers,
-                                            self.opt.weights_init == "pretrained",
-                                            num_input_images=self.num_pose_frames,
-                                            encoder_path=self.opt.encoder_path)
-            self.models["pose_encoder"].to(self.device)
-
-            # pose decoder
-            self.models["pose"] = networks.PoseDecoder(
-                self.models["pose_encoder"].num_ch_enc,
-                num_input_features=1,
-                num_frames_to_predict_for=2)
-            self.models["pose"].to(self.device)
-
-
-        #posecnn
-        elif self.opt.pose_arch=='posecnn':
-            if self.opt.posecnn_path:
-
-                print("posecnn pretrained or scratch: " + self.opt.weights_init)
-                print("posecnn load:" + self.opt.posecnn_path)
-            self.models['posecnn'] = networks.PoseNet().to(self.device)
+        #
+        self.logger = TermLogger(n_epochs=options['epoch'],
+                                 train_size=len(self.train_loader),
+                                 valid_size=len(self.val_loader))
+        self.logger.reset_epoch_bar()
 
 
 
 
 
-    #trainale params
-        parameters_to_train=[]
-        for k,v in self.models.items():
-            parameters_to_train+= list(v.parameters())
-        self.model_optimizer = optim.Adam(parameters_to_train, self.opt.learning_rate)
-        self.model_lr_scheduler = optim.lr_scheduler.StepLR(
-            self.model_optimizer, self.opt.scheduler_step_size, 0.1)
-#load model
-        if self.opt.load_weights_folder is not None:
-            print("load model from {} instead pretrain".format(self.opt.load_weights_folder))
-            self.load_model()
 
 
+        #static define
 
 
-        # datasets setting
-        datasets_dict = {"kitti": KITTIRAWDataset,
-                         "kitti_odom": KITTIOdomDataset,
-                         "mc":MCDataset,
-                         "custom_mono":CustomMonoDataset,
-                         "visdrone":VSDataset}
-        if self.opt.dataset in datasets_dict.keys():
-
-            self.dataset = datasets_dict[self.opt.dataset]#选择建立哪个类，这里kitti，返回构造函数句柄
-        else:
-            self.dataset = CustomMonoDataset
-
-
-        train_path = Path(self.opt.split)/options.train_files
-        val_path = Path(self.opt.split)/options.val_files
-
-
-        train_filenames = readlines(train_path)
-        val_filenames = readlines(val_path)
-        img_ext = '.png' if self.opt.png else '.jpg'
-
-        num_train_samples = len(train_filenames)
-        self.num_total_steps = num_train_samples // self.opt.batch_size * self.opt.num_epochs
-
-        #train loader
-        train_dataset = self.dataset(#KITTIRAWData
-            self.opt.data_path,
-            train_filenames,
-            self.opt.height,
-            self.opt.width,
-            self.opt.frame_ids,
-            4,
-            is_train=True,
-            img_ext=img_ext)
-        self.train_loader = DataLoader(#train_datasets:KITTIRAWDataset
-            dataset=train_dataset,
-            batch_size= self.opt.batch_size,
-            shuffle= False,
-            num_workers=self.opt.num_workers,
-            pin_memory=True,
-            drop_last=True)
-
-        #val loader
-        val_dataset = self.dataset(
-            self.opt.data_path,
-            val_filenames,
-            self.opt.height,
-            self.opt.width,
-            self.opt.frame_ids,
-            4,
-            is_train=False,
-            img_ext=img_ext)
-
-        self.val_loader = DataLoader(
-            val_dataset,
-            self.opt.batch_size,
-            True,
-            num_workers=self.opt.num_workers,
-            pin_memory=True,
-            drop_last=True)
-
-        self.val_iter = iter(self.val_loader)
-
+        # tb_log
         self.writers = {}
         for mode in ["train", "val"]:
             self.writers[mode] = SummaryWriter(self.checkpoints_path/mode)
 
-        self.ssim = SSIM()
-        self.ssim.to(self.device)
 
+        #self.layers
+        self.layers={}
+        self.layers['ssim'] = SSIM()
+        self.layers['ssim'].to(self.device)
+
+        self.layers['back_proj_depth']={}
+        self.layers['project_3d']={}
+
+        #batch_process, generate_pred
         self.backproject_depth = {}
         self.project_3d = {}
-        for scale in self.opt.scales:
-            h = self.opt.height // (2 ** scale)
-            w = self.opt.width // (2 ** scale)
 
-            self.backproject_depth[scale] = BackprojectDepth(self.opt.batch_size, h, w)
-            self.backproject_depth[scale].to(self.device)
+        for scale in options['scales']:
+            h = options['height'] // (2 ** scale)
+            w = options['width'] // (2 ** scale)
 
-            self.project_3d[scale] = Project3D(self.opt.batch_size, h, w)
-            self.project_3d[scale].to(self.device)
-        self.depth_metric_names = [
-            "de/abs_rel", "de/sq_rel", "de/rms", "de/log_rms", "da/a1", "da/a2", "da/a3"]
+            self.layers['back_proj_depth'][scale] = BackprojectDepth(options['batch_size'], h, w)
+            self.layers['back_proj_depth'][scale].to(self.device)
 
-        print("Using split:{}, train_files:{}, val_files:{}".format( self.opt.split,self.opt.train_files,self.opt.val_files))
-        print("There are {:d} training items and {:d} validation items\n".format(
-            len(train_dataset), len(val_dataset)))
+            self.layers['project_3d'][scale] = Project3D(options['batch_size'], h, w)
+            self.layers['project_3d'][scale].to(self.device)
+
+        #compute_depth_metrics
+        self.metrics = {"de/abs_rel":0.0,
+                        "de/sq_rel":0.0,
+                        "de/rms":0.0,
+                        "de/log_rms":0.0,
+                        "da/a1":0.0,
+                        "da/a2":0.0,
+                        "da/a3":0.0
+                        }
+
+
 
         #print("Training model named:\t  ", self.opt.model_name)
         print("traing files are saved to: ", self.opt.log_dir)
@@ -213,38 +293,214 @@ class Trainer:
         print("start time: ",self.start_time)
 
 
-        self.save_opts()
+        #self.save_opts()
 
         #custom
 
-        self.logger = TermLogger(n_epochs=self.opt.num_epochs,
-                            train_size=len(self.train_loader),
-                            valid_size=len(self.val_loader))
-        self.logger.reset_epoch_bar()
-
-        self.metrics = {}
+    def compute_losses_f(self,inputs, outputs):
 
 
 
+        scales = self.scales
+        frame_idxs=self.frame_idxs
 
 
-    def set_train(self):
-        """Convert all models to training mode
+
+        losses = {}
+        total_loss = 0
+
+        for scale in scales:
+            loss = 0
+
+            source_scale = 0
+
+            disp = outputs[("disp", 0, scale)]
+            color = inputs[("color", 0, scale)]
+            target = inputs[("color", 0, source_scale)]
+
+            # reprojection_losses
+            reprojection_losses = []
+            for frame_id in self.frame_idxs[1:]:
+                pred = outputs[("color", frame_id, scale)]
+                reprojection_losses.append(compute_reprojection_loss(self.ssim, pred, target))
+
+            reprojection_losses = torch.cat(reprojection_losses, 1)
+
+            # identity_reprojection_losses
+            identity_reprojection_losses = []
+            for frame_id in frame_idxs[1:]:
+                pred = inputs[("color", frame_id, source_scale)]
+                identity_reprojection_losses.append(
+                    compute_reprojection_loss(self.ssim, pred, target))
+
+            identity_reprojection_losses = torch.cat(identity_reprojection_losses, 1)
+
+            #
+            identity_reprojection_loss = identity_reprojection_losses
+
+            reprojection_loss = reprojection_losses
+
+            # add random numbers to break ties# 花书p149 向输入添加方差极小的噪声等价于 对权重施加范数惩罚
+            identity_reprojection_loss += torch.randn(
+                identity_reprojection_loss.shape).cuda() * 0.00001
+
+            erro_maps = torch.cat((identity_reprojection_loss, reprojection_loss), dim=1)  # b4hw
+
+            # --------------------------------------------------------------
+            map_34, idxs_1 = torch.min(reprojection_loss, dim=1)
+            # map_34 = torch.mean(reprojection_loss, dim=1)
+
+            # var_mask = VarMask(erro_maps)
+            # mean_mask = MeanMask(erro_maps)
+            # identity_selection = IdenticalMask(erro_maps)
+
+            # final_mask = float8or(float8or(1 - mean_mask, identity_selection), var_mask)#kitti
+            # final_mask = float8or((mean_mask * identity_selection),var_mask)#vsd
+            # to_optimise = map_34 * identity_selection
+            # to_optimise = map_34 * final_mask
+            to_optimise = map_34
+
+            # outputs["identity_selection/{}".format(scale)] = identity_selection.float()
+            # outputs["mean_mask/{}".format(scale)] = mean_mask.float()
+
+            # outputs["var_mask/{}".format(scale)] = var_mask.float()
+
+            # outputs["final_selection/{}".format(scale)] = final_mask.float()
+
+            # ----------------------------------------
+
+            loss += to_optimise.mean()
+
+            mean_disp = disp.mean(2, True).mean(3, True)
+            norm_disp = disp / (mean_disp + 1e-7)
+            smooth_loss = get_smooth_loss(norm_disp, color)
+
+            loss += 0.1 * smooth_loss / (2 ** scale)
+            total_loss += loss
+            losses["loss/{}".format(scale)] = loss
+
+        total_loss /= len(scales)
+        losses["loss"] = total_loss
+        return losses
+
+    def generate_images_pred(self,inputs, outputs):
+        """Generate the warped (reprojected) color images for a minibatch.
+        Generated images are saved into the `outputs` dictionary as color_identity.
+        global inputs:
+            self.scales
+            self.height
+            self.width
+            self.min_depth
+            self.max_depth
+            self.frame_idxs
+            self.device
+
         """
-        for m in self.models.values():
-            m.train()
+        scales = self.scales
+        frame_idxs = self.frame_idxs
+        height = self.feed_height
+        width = self.feed_width
 
-    def set_eval(self):
-        """Convert all models to testing/evaluation mode
-        """
-        for m in self.models.values():
-            m.eval()
+
+
+        for scale in scales:
+            # get depth
+
+            disp = outputs[("disp", 0, scale)]
+
+            disp = F.interpolate(
+                disp, [height, width], mode="bilinear", align_corners=False)
+            source_scale = 0
+
+            _, depth = disp_to_depth(disp)
+
+            outputs[("depth", 0, scale)] = depth
+
+            for i, frame_id in enumerate(frame_idxs[1:]):
+                T = outputs[("cam_T_cam", 0, frame_id)]
+
+                # from the authors of https://arxiv.org/abs/1712.00175
+
+                cam_points = self.backproject_depth[source_scale](depth,
+                                                                  inputs[("inv_K", source_scale)])  # D@K_inv
+                pix_coords = self.project_3d[source_scale](cam_points, inputs[("K", source_scale)], T)  # K@D@K_inv
+
+                outputs[("sample", frame_id, scale)] = pix_coords  # rigid_flow
+
+                outputs[("color", frame_id, scale)] = F.grid_sample(inputs[("color", frame_id, source_scale)],
+                                                                    outputs[("sample", frame_id, scale)],
+                                                                    padding_mode="border", align_corners=True)
+
+                outputs[("color_identity", frame_id, scale)] = inputs[("color", frame_id, source_scale)]
 
     #1. forward pass1, more like core
-    def process_batch(self, inputs):
+    def batch_process(self, inputs):
         """Pass a minibatch through the network and generate images and losses
         """
 
+        def predict_poses(inputs, features):
+            """Predict poses between input frames for monocular sequences.
+            write outputs
+            self inputs:
+                self.frame_idxs
+                self.models
+                self.pose_arch
+
+
+            """
+            outputs = {}
+
+            # In this setting, we compute the pose to each source frame via a
+            # separate forward pass through the pose network.
+
+            # select what features the pose network takes as input
+
+            pose_feats = {f_i: inputs["color_aug", f_i, 0] for f_i in self.frame_idxs}
+
+            for f_i in range(len(self.frame_idxs)):
+
+                # To maintain ordering we always pass frames in temporal order
+
+                # map concat
+                if f_i < 0:
+                    pose_inputs = [pose_feats[f_i], pose_feats[0]]
+                else:
+                    pose_inputs = [pose_feats[0], pose_feats[f_i]]
+
+                # pose en-decoder
+                # encoder map
+                #pose_arch == 'en_decoder':
+
+
+                features_mid = [
+                    self.models["pose_encoder"](
+                        torch.cat(pose_inputs, 1)
+                    )
+                ]  # pose_inputs list of 2 [b,3,h,w] i.e b,6,h,w
+
+                # decoder
+                axisangle, translation = self.models["pose"](features_mid)  # b213,b213
+
+                # outputs[("axisangle", 0, f_i)] = axisangle#没用？
+                # outputs[("translation", 0, f_i)] = translation#没用？
+
+                # Invert the matrix if the frame id is negative
+                cam_T_cam = transformation_from_parameters(
+                    axisangle[:, 0], translation[:, 0], invert=(f_i < 0)
+                )  # b44
+                outputs[("cam_T_cam", 0, f_i)] = cam_T_cam
+
+                #pose_arch == 'posecnn':
+                # pose = self.models['posecnn'](pose_inputs[0], pose_inputs[1])
+                #
+                # cam_T_cam = transformation_from_parameters(
+                #     pose[:, :3].unsqueeze(1), pose[:, 3:].unsqueeze(1), invert=(f_i < 0)
+                # )  # b44
+                # outputs[("cam_T_cam", 0, f_i)] = cam_T_cam
+
+            return outputs
+
+        #
         for key, ipt in inputs.items():
             inputs[key] = ipt.to(self.device)
 
@@ -265,7 +521,7 @@ class Trainer:
         #2. mask
 
         #3. pose
-        outputs.update(self.predict_poses(inputs, features))        #outputs get 3 new values
+        outputs.update(predict_poses(inputs, features))        #outputs get 3 new values
 
 
         #4.
@@ -275,264 +531,12 @@ class Trainer:
         return outputs, losses
 
     #2. called by 1
-    def predict_poses(self, inputs, features):
-        """Predict poses between input frames for monocular sequences.
-        write outputs
-        """
-        outputs = {}
 
-        # In this setting, we compute the pose to each source frame via a
-        # separate forward pass through the pose network.
 
-        # select what features the pose network takes as input
 
-        pose_feats = {f_i: inputs["color_aug", f_i, 0] for f_i in self.opt.frame_ids}
 
 
-
-        for f_i in self.opt.frame_ids[1:]:
-
-            # To maintain ordering we always pass frames in temporal order
-
-            #map concat
-            if f_i < 0:
-                pose_inputs = [pose_feats[f_i], pose_feats[0]]
-            else:
-                pose_inputs = [pose_feats[0], pose_feats[f_i]]
-
-        #pose en-decoder
-            #encoder map
-            if self.opt.pose_arch=='en_decoder':
-                features_mid = [self.models["pose_encoder"](torch.cat(pose_inputs, 1))]#pose_inputs list of 2 [b,3,h,w] i.e b,6,h,w
-
-                #decoder
-                axisangle, translation = self.models["pose"](features_mid)#b213,b213
-
-
-
-                    #outputs[("axisangle", 0, f_i)] = axisangle#没用？
-                    #outputs[("translation", 0, f_i)] = translation#没用？
-
-                # Invert the matrix if the frame id is negative
-                cam_T_cam= transformation_from_parameters(
-                    axisangle[:, 0], translation[:, 0], invert=(f_i < 0)
-                )#b44
-                outputs[("cam_T_cam", 0, f_i)] = cam_T_cam
-            elif self.opt.pose_arch=='posecnn':
-
-
-                pose = self.models['posecnn'](pose_inputs[0],pose_inputs[1])
-
-                cam_T_cam = transformation_from_parameters(
-                    pose[:,:3].unsqueeze(1), pose[:,3:].unsqueeze(1), invert=(f_i < 0)
-                )  # b44
-                outputs[("cam_T_cam", 0, f_i)] = cam_T_cam
-
-
-        return outputs
-
-    #3.
-    def generate_images_pred(self, inputs, outputs):
-        """Generate the warped (reprojected) color images for a minibatch.
-        Generated images are saved into the `outputs` dictionary as color_identity.
-        """
-        for scale in self.opt.scales:
-            # get depth
-
-            disp = outputs[("disp", 0,scale)]
-
-            disp = F.interpolate(
-                    disp, [self.opt.height, self.opt.width], mode="bilinear", align_corners=False)
-            source_scale = 0
-
-            _, depth = disp_to_depth(disp, self.opt.min_depth, self.opt.max_depth)
-
-            outputs[("depth", 0, scale)] = depth
-
-            for i, frame_id in enumerate(self.opt.frame_ids[1:]):
-
-
-                T = outputs[("cam_T_cam", 0, frame_id)]
-
-                # from the authors of https://arxiv.org/abs/1712.00175
-
-
-                cam_points = self.backproject_depth[source_scale](depth,
-                                                                inputs[("inv_K", source_scale)])# D@K_inv
-                pix_coords = self.project_3d[source_scale](cam_points, inputs[("K", source_scale)], T)# K@D@K_inv
-
-
-                outputs[("sample", frame_id, scale)] = pix_coords#rigid_flow
-
-                outputs[("color", frame_id, scale)]= F.grid_sample(inputs[("color", frame_id, source_scale)],
-                                                                    outputs[("sample", frame_id, scale)],
-                                                                    padding_mode="border",align_corners=True)
-
-
-                outputs[("color_identity", frame_id, scale)] = inputs[("color", frame_id, source_scale)]
-
-    #4.
-    def compute_reprojection_loss(self, pred, target):
-        """Computes reprojection loss between a batch of predicted and target images
-        """
-        abs_diff = torch.abs(target - pred)
-        l1_loss = abs_diff.mean(1, True)#[b,1,h,w]
-
-        ssim_loss = self.ssim(pred, target).mean(1, True)
-        reprojection_loss = 0.85 * ssim_loss + 0.15 * l1_loss
-
-        return reprojection_loss#[b,1,h,w]
-
-
-
-    def compute_losses(self, inputs, outputs):
-        """Compute the reprojection and smoothness losses for a minibatch
-        """
-        losses = {}
-        total_loss = 0
-
-        for scale in self.opt.scales:
-            loss = 0
-            reprojection_losses = []
-
-
-            source_scale = 0
-
-            disp = outputs[("disp", 0,scale)]
-            color = inputs[("color", 0, scale)]
-            target = inputs[("color", 0, source_scale)]
-
-            for frame_id in self.opt.frame_ids[1:]:
-                pred = outputs[("color", frame_id, scale)]
-                reprojection_losses.append(self.compute_reprojection_loss(pred, target))
-
-            reprojection_losses = torch.cat(reprojection_losses, 1)
-
-            identity_reprojection_losses = []
-            for frame_id in self.opt.frame_ids[1:]:
-                pred = inputs[("color", frame_id, source_scale)]
-                identity_reprojection_losses.append(
-                    self.compute_reprojection_loss(pred, target))
-
-            identity_reprojection_losses = torch.cat(identity_reprojection_losses, 1)
-
-
-            identity_reprojection_loss = identity_reprojection_losses
-
-
-
-
-            reprojection_loss = reprojection_losses
-
-            # add random numbers to break ties# 花书p149 向输入添加方差极小的噪声等价于 对权重施加范数惩罚
-            identity_reprojection_loss += torch.randn(
-                identity_reprojection_loss.shape).cuda() * 0.00001
-
-            combined = torch.cat((identity_reprojection_loss, reprojection_loss), dim=1)
-
-
-            to_optimise, idxs = torch.min(combined, dim=1)
-
-            outputs["identity_selection/{}".format(scale)] = (
-                idxs > identity_reprojection_loss.shape[1] - 1).float()
-
-            loss += to_optimise.mean()
-
-            mean_disp = disp.mean(2, True).mean(3, True)
-            norm_disp = disp / (mean_disp + 1e-7)
-            smooth_loss = get_smooth_loss(norm_disp, color)
-
-            loss += self.opt.disparity_smoothness * smooth_loss / (2 ** scale)
-            total_loss += loss
-            losses["loss/{}".format(scale)] = loss
-
-        total_loss /= self.num_scales
-        losses["loss"] = total_loss
-        return losses
-
-    def compute_losses_f(self, inputs, outputs):
-        """通过var 计算移动物体
-        """
-        losses = {}
-        total_loss = 0
-
-        for scale in self.opt.scales:
-            loss = 0
-
-            source_scale = 0
-
-            disp = outputs[("disp", 0, scale)]
-            color = inputs[("color", 0, scale)]
-            target = inputs[("color", 0, source_scale)]
-
-            #reprojection_losses
-            reprojection_losses = []
-            for frame_id in self.opt.frame_ids[1:]:
-                pred = outputs[("color", frame_id, scale)]
-                reprojection_losses.append(self.compute_reprojection_loss(pred, target))
-
-            reprojection_losses = torch.cat(reprojection_losses, 1)
-
-            #identity_reprojection_losses
-            identity_reprojection_losses = []
-            for frame_id in self.opt.frame_ids[1:]:
-                pred = inputs[("color", frame_id, source_scale)]
-                identity_reprojection_losses.append(
-                    self.compute_reprojection_loss(pred, target))
-
-            identity_reprojection_losses = torch.cat(identity_reprojection_losses, 1)
-
-
-            #
-            identity_reprojection_loss = identity_reprojection_losses
-
-            reprojection_loss = reprojection_losses
-
-            # add random numbers to break ties# 花书p149 向输入添加方差极小的噪声等价于 对权重施加范数惩罚
-            identity_reprojection_loss += torch.randn(
-                identity_reprojection_loss.shape).cuda() * 0.00001
-
-            erro_maps = torch.cat((identity_reprojection_loss, reprojection_loss), dim=1)#b4hw
-
-# --------------------------------------------------------------
-            map_34, idxs_1 = torch.min(reprojection_loss, dim=1)
-            #map_34 = torch.mean(reprojection_loss, dim=1)
-
-            #var_mask = VarMask(erro_maps)
-            #mean_mask = MeanMask(erro_maps)
-            #identity_selection = IdenticalMask(erro_maps)
-
-            #final_mask = float8or(float8or(1 - mean_mask, identity_selection), var_mask)#kitti
-            #final_mask = float8or((mean_mask * identity_selection),var_mask)#vsd
-            #to_optimise = map_34 * identity_selection
-            #to_optimise = map_34 * final_mask
-            to_optimise = map_34
-
-            #outputs["identity_selection/{}".format(scale)] = identity_selection.float()
-            #outputs["mean_mask/{}".format(scale)] = mean_mask.float()
-
-            #outputs["var_mask/{}".format(scale)] = var_mask.float()
-
-            #outputs["final_selection/{}".format(scale)] = final_mask.float()
-
-# ----------------------------------------
-
-            loss += to_optimise.mean()
-
-            mean_disp = disp.mean(2, True).mean(3, True)
-            norm_disp = disp / (mean_disp + 1e-7)
-            smooth_loss = get_smooth_loss(norm_disp, color)
-
-            loss += self.opt.disparity_smoothness * smooth_loss / (2 ** scale)
-            total_loss += loss
-            losses["loss/{}".format(scale)] = loss
-
-        total_loss /= self.num_scales
-        losses["loss"] = total_loss
-        return losses
-
-
-    def compute_depth_metrics(self, inputs, outputs):
+    def compute_depth_metrics(self, inputs, outputs,dataset_type):
         """Compute depth metrics, to allow monitoring during training
 
         This isn't particularly accurate as it averages over the entire batch,
@@ -541,10 +545,20 @@ class Trainer:
         in1 outputs[("depth", 0, 0)]
         in2 inputs["depth_gt"]
         out1 losses
+
+        used by epoch
         """
-        depth_pred = outputs[("depth", 0, 0)]
-        depth_pred = torch.clamp(F.interpolate(
-            depth_pred, [self.opt.full_height, self.opt.full_width], mode="bilinear", align_corners=False), 1e-3, 80)
+        min_depth = self.min_depth
+        max_depth = self.max_depth
+        full_height = self.full_height
+        full_width = self.full_width
+
+        depth_pred_full = F.interpolate(outputs[("depth", 0, 0)], [full_height, full_width], mode="bilinear", align_corners=False)
+        depth_pred = torch.clamp(
+              depth_pred_full,
+              min=min_depth,
+              max=max_depth
+          )
         depth_pred = depth_pred.detach()
 
         depth_gt = inputs["depth_gt"]
@@ -552,7 +566,7 @@ class Trainer:
 
         # garg/eigen crop#????
         crop_mask = torch.zeros_like(mask)
-        if self.opt.dataset =='kitti':
+        if dataset_type =='kitti':#val_dataset
             crop_mask[:, :, 153:371, 44:1197] = 1
             mask = mask * crop_mask
 
@@ -562,29 +576,24 @@ class Trainer:
 
         depth_pred = torch.clamp(depth_pred, min=1e-3, max=80)
 
-        depth_errors = compute_depth_errors(depth_gt, depth_pred)
-        metrics={}
-        for i, metric in enumerate(self.depth_metric_names):
-            metrics[metric] = np.array(depth_errors[i].cpu())
-        return  metrics
+
+        metrics = compute_depth_errors(depth_gt, depth_pred)
+        for k, v in metrics.items():
+            metrics[k] = np.array(v.cpu())
+        return metrics
 
 
-
-    def terminal_log(self, batch_idx, duration, loss):
-        """Print a logging statement to the terminal
-        """
-        samples_per_sec = self.opt.batch_size / duration
-        time_sofar = time.time() - self.start_time
-        training_time_left = (
-            self.num_total_steps / self.step - 1.0) * time_sofar if self.step > 0 else 0
-        print_string = "epoch {:>3} | batch {:>6} | examples/s: {:5.1f}" + \
-            " | loss: {:.5f} | time elapsed: {} | time left: {}"
-        print(print_string.format(self.epoch, batch_idx, samples_per_sec, loss,
-                                  sec_to_hm_str(time_sofar), sec_to_hm_str(training_time_left)))
 
     def tb_log(self, mode, inputs=None, outputs=None, losses=None,metrics=None):
         """Write an event to the tensorboard events file
-        """
+        global inputs:
+            self.step
+            self.writers
+            self.batch_size
+            self.scales
+            self.frame_idxs
+            self.mask
+         """
         writer = self.writers[mode]
         if losses!=None:
             for l, v in losses.items():
@@ -599,7 +608,7 @@ class Trainer:
                     if s !=0:
                         continue
                     #color add
-                    for frame_id in self.opt.frame_ids:
+                    for frame_id in self.frame_idxs:
                         writer.add_image(
                             "color_{}_{}/{}".format(frame_id, s, j),
                             inputs[("color", frame_id, s)][j].data, self.step)
@@ -620,95 +629,29 @@ class Trainer:
                                 mask+"{}/{}".format(s, j),
                                 img, self.step)  # add 1,h,w
 
-                    '''        
-                    if "identity_selection/{}".format(s) in outputs.keys():
-                        img = tensor2array(outputs["identity_selection/{}".format(s)][j],colormap='bone')
-                        writer.add_image(
-                                "automask_{}/{}".format(s, j),
-                                #outputs["identity_selection/{}".format(s)][j][None, ...], self.step)
-                                img, self.step)#add 1,h,w
 
-                    if "mo_ob/{}".format(s) in outputs.keys():
-                        img = tensor2array(outputs["mo_ob/{}".format(s)][j],colormap='bone')
-                        writer.add_image(
-                                "mo_ob_{}/{}".format(s, j),
-                                #outputs["identity_selection/{}".format(s)][j][None, ...], self.step)
-                                img, self.step)#add 1,h,w
-                    if "final_selection/{}".format(s) in outputs.keys():
-                        img = tensor2array(outputs["final_selection/{}".format(s)][j],colormap='bone')
-                        writer.add_image(
-                                "final_selection_{}/{}".format(s, j),
-                                #outputs["identity_selection/{}".format(s)][j][None, ...], self.step)
-                                img, self.step)#add 1,h,w
-                    '''
-
-    def save_opts(self):
-        """Save options to disk so we know what we ran this experiment with
-        """
-        models_dir = self.checkpoints_path/"models"
-        if not os.path.exists(models_dir):
-            os.makedirs(models_dir)
-        to_save = self.opt.__dict__.copy()
-
-        with open(os.path.join(self.checkpoints_path, 'opt.json'), 'w') as f:
-            json.dump(to_save, f, indent=2)
-
-    def save_model(self):
-        """Save model weights to disk
-        """
-
-        save_folder = self.checkpoints_path/"models"/"weights_{}".format(self.epoch)
-        save_folder.makedirs_p()
-
-        for model_name, model in self.models.items():
-            save_path = save_folder/ "{}.pth".format(model_name)
-            to_save = model.state_dict()
-            if model_name == 'encoder':
-                # save the sizes - these are needed at prediction time
-                to_save['height'] = self.opt.height
-                to_save['width'] = self.opt.width
-            torch.save(to_save, save_path)
-
-        save_path = save_folder/ "{}.pth".format("adam")
-        torch.save(self.model_optimizer.state_dict(), save_path)
-
-    def load_model(self):
-        """Load model(s) from load_weights_folder
-        """
-        self.opt.load_weights_folder = os.path.expanduser(self.opt.load_weights_folder)
-
-        assert os.path.isdir(self.opt.load_weights_folder), \
-            "Cannot find folder {}".format(self.opt.load_weights_folder)
-        print("loading model from folder {}".format(self.opt.load_weights_folder))
-
-        for n in self.opt.models_to_load:
-            path = os.path.join(self.opt.load_weights_folder, "{}.pth".format(n))
-            model_dict = self.models[n].state_dict()
-            pretrained_dict = torch.load(path)
-            pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
-            model_dict.update(pretrained_dict)
-            self.models[n].load_state_dict(model_dict)
-        print("Loading {} weights...".format(self.opt.models_to_load))
-
-        # loading adam state
-        optimizer_load_path = os.path.join(self.opt.load_weights_folder, "adam.pth")
-        if os.path.isfile(optimizer_load_path):
-            print("Loading Adam weights")
-            optimizer_dict = torch.load(optimizer_load_path)
-            self.model_optimizer.load_state_dict(optimizer_dict)
-        else:
-            print("Cannot find Adam weights so Adam is randomly initialized")
     #main cycle
-    def epoch_train(self):
+    def epoch_process(self):
         """Run a single epoch of training and validation
+        global_inputs:
+            self.models
+            self.motel_optimizer
+            self.model_lr_scheduler
+            self.step
+            self.tb_log_frequency
+            self.logger
+        global_methods:
+            self.batch_process
+            self.tb_log
+            self.compute_depth_metrics
+            self.val
         """
-
-        self.set_train()
+        set_mode(self.models,'train')
 
         for batch_idx, inputs in enumerate(self.train_loader):
             before_op_time = time.time()
             #model forwardpass
-            outputs, losses = self.process_batch(inputs)#
+            outputs, losses = self.batch_process(inputs)#
 
             self.model_optimizer.zero_grad()
             losses["loss"].backward()
@@ -717,7 +660,7 @@ class Trainer:
             duration = time.time() - before_op_time
 
             # log less frequently after the first 2000 steps to save time & disk space
-            early_phase = batch_idx % self.opt.tb_log_frequency == 0 and self.step < 2000
+            early_phase = batch_idx % self.tb_log_frequency == 0 and self.step < 2000
             late_phase = self.step % 2000 == 0
 
             #
@@ -725,15 +668,11 @@ class Trainer:
 
             #val, and terminal_val_log, and tb_log
             if early_phase or late_phase:
-                #self.terminal_log(batch_idx, duration, losses["loss"].cpu().data)
 
 
-                #metrics={}
-                #if "depth_gt" in inputs:
-                #    metrics = self.compute_depth_metrics(inputs, outputs)
-                self.tb_log(mode="train", inputs=inputs, outputs=outputs, losses =losses)#terminal log
                 if "depth_gt" in inputs:
-                    self.metrics = self.compute_depth_metrics(inputs, outputs)
+                    #train_set validate
+                    self.metrics = self.compute_depth_metrics(inputs, outputs,dataset_type='kitti')
                     self.tb_log(mode='train', metrics=self.metrics)
 
 
@@ -743,16 +682,20 @@ class Trainer:
             self.step += 1
 
         self.model_lr_scheduler.step()
-
         self.logger.reset_train_bar()
         self.logger.reset_valid_bar()
 
             #record the metric
 
     #only 2 methods for public call
-    def train(self):
+    def __call__(self,opts):
+
         """Run the entire training pipeline
         """
+
+
+
+
         self.epoch = 0
         self.step = 0
         self.start_time = time.time()
@@ -762,31 +705,58 @@ class Trainer:
                                         names=self.metrics.keys(),
                                         values=["{:.4f}".format(float(item)) for item in self.metrics.values()])
 
-        for self.epoch in range(self.opt.start_epoch,self.opt.num_epochs):
+        for epoch in range(opts['model']['epoch']):
             epc_st = time.time()
-            self.epoch_train()
+            self.epoch_process()
             duration = time.time() - epc_st
-            self.logger.epoch_logger_update(epoch=self.epoch+1,
+            self.logger.epoch_logger_update(epoch=epoch+1,
                                             time=duration,
                                             names=self.metrics.keys(),
                                             values=["{:.4f}".format(float(item)) for item in self.metrics.values()])
-            if (self.epoch + 1) % self.opt.weights_save_frequency == 0 :
-                self.save_model()
+            if (epoch + 1) % opts['settings']['weights_save_frequency'] == 0 :
+
+
+                save_folder = self.checkpoints_path / "models" / "weights_{}".format(epoch)
+                save_folder.makedirs_p()
+
+                for model_name, model in self.models.items():
+                    save_path = save_folder / "{}.pth".format(model_name)
+                    to_save = model.state_dict()
+                    # if model_name == 'encoder':
+                    #     # save the sizes - these are needed at prediction time
+                    #     to_save['height'] = input_size['height']
+                    #     to_save['width'] = input_size['width']
+                    torch.save(to_save, save_path)
+                #optimizer
+                save_path = self.checkpoints_path/'models'/ "{}.pth".format("adam")
+                torch.save(self.model_optimizer.state_dict(), save_path)
+
+
 
     @torch.no_grad()
     def val(self):
         """Validate the model on a single minibatch
         这和之前的常用框架不同， 之前是在train all batches 后再 val all batches，
         这里train batch 再 val batch（frequency）
+        global inputs:
+            self.models
+            self.logger
+        global methods:
+            self.batch_process
+            self.tb_log
+
         """
-        self.set_eval()
+        set_mode(self.models,'eval')
+
         try:
             inputs = self.val_iter.next()
         except StopIteration:
             self.val_iter = iter(self.val_loader)
             inputs = self.val_iter.next()
+
+
         time_st = time.time()
-        outputs, losses = self.process_batch(inputs)
+        outputs, losses = self.batch_process(inputs)
         duration =time.time() -  time_st
         self.logger.valid_logger_update(batch=self.val_iter._rcvd_idx,
                                         time=duration*self.opt.tb_log_frequency,
@@ -798,9 +768,12 @@ class Trainer:
         self.tb_log(mode="val", inputs=inputs, outputs=outputs, losses=losses)
 
         if "depth_gt" in inputs:
-            metrics = self.compute_depth_metrics(inputs, outputs)
-            self.tb_log(mode="val",metrics = metrics)
-            del metrics
+            #val_set validate
+            self.metrics = self.compute_depth_metrics(inputs, outputs,dataset_type='kitti')
+            self.tb_log(mode="val",metrics = self.metrics)
 
+        del self.metrics
         del inputs, outputs, losses
-        self.set_train()
+        set_mode(self.models,'train')
+
+

@@ -7,32 +7,28 @@ dataset:
     val_files: val_files.txt
   type: KITTI
 model:
+  disparity_smoothness: 0.1
   feed_height: 192
   feed_width: 640
-  full_height: 375
-  full_width: 1242
-  init_weight:
-    path: /home/roit/models/monodepth2_official/mono_640x192
-  network:
-    depth_decoder: conv5
-    depth_encoder: res18
-settings:
-  batch_size: 8
-  cuda: true
-  disparity_smoothness: 0.1
-  epoch: 20
   frame_ids:
   - -1
   - 0
   - 1
-  log_dir: /home/roit/models/monodepth2/kitti
+  full_height: 375
+  full_width: 1242
+  init_weight_path: /home/roit/models/monodepth2_official/mono_640x192
   lr: 0.001
-  max_depth: 80.0
-  min_depth: 0.1
   scales:
   - 0
   - 1
   - 2
   - 3
+settings:
+  batch_size: 8
+  cuda: true
+  epoch: 20
+  log_dir: /home/roit/models/monodepth2/kitti
+  max_depth: 80.0
+  min_depth: 0.1
   tb_log_frequency: 12
   weights_save_frequency: 1

@@ -22,7 +22,7 @@ def main1():
 def main2():
     opts = YamlHandler('./opts/train_opts.yaml').read_yaml()
     trainer = Trainer(opts)
-    trainer.train()
+    trainer(opts)
     print('training over')
 
 if __name__ == "__main__":
