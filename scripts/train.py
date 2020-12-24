@@ -13,14 +13,8 @@ from opts.mc_train_opts import mc_train_opts
 
 
 
-def main1():
-    options = train_opts()
-    opts = options.args()
-    trainer = Trainer(opts)
-    trainer.train()
-    print('training over')
 def main2():
-    opts = YamlHandler('./opts/train_opts.yaml').read_yaml()
+    opts = YamlHandler('/home/roit/aws/aprojects/DeepSfMLearner/opts/train_opts.yaml').read_yaml()
     trainer = Trainer(opts)
     trainer(opts)
     print('training over')
