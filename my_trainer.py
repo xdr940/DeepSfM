@@ -24,6 +24,19 @@ from datasets import MCDataset,VSDataset
 from datasets import CustomMonoDataset
 import networks
 from utils.logger import TermLogger
+import torch
+
+
+seed = 127
+#random seed
+np.random.seed(seed)
+torch.manual_seed(seed)
+torch.cuda.manual_seed_all(seed)
+random.seed(seed)
+
+torch.backends.cudnn.benchmark = False
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.enabled= True
 
 def set_mode(models, mode):
     """Convert all models to training mode
@@ -54,14 +67,16 @@ class Trainer:
             lr = model_opt['lr']
             scheduler_step_size = model_opt['scheduler_step_size']
             load_models = model_opt['load_models']
-            init_weight_path = Path(model_opt['init_weight_path'])
+            init_weight_path = model_opt['init_weight_path']
+            encoder_path = model_opt['encoder_path']
+
 
 
             #encoder
             models["encoder"] = networks.ResnetEncoder(
                 num_layers=18,#resnet18
                 pretrained=False,
-                #encoder_path=init_weight_path/'encoder.pth'
+                #encoder_path=encoder_path
             )
             models["encoder"].to(device)
 
@@ -106,6 +121,7 @@ class Trainer:
                 init_weight_path = Path(init_weight_path)
 
                 for name in load_models:
+
                     path = init_weight_path / name + '.pth'
                     model_dict = models[name].state_dict()
                     pretrained_dict = torch.load(path)
@@ -114,10 +130,20 @@ class Trainer:
                     models[name].load_state_dict(model_dict)
                 print("--> Loading weights from {}".format(init_weight_path))
                 # loading adam state
-                optimizer_load_path = init_weight_path / "adam.pth"
-                if optimizer_load_path.exists():
-                    optimizer_dict = torch.load(optimizer_load_path)
-                    model_optimizer.load_state_dict(optimizer_dict)
+
+            elif encoder_path:
+                print('--> encoder from {}, others from scratch'.format(encoder_path))
+            else:
+                print('--> train models all from scratch')
+
+            optimizer_load_path = Path('/home/roit/models/adam.pth')
+            if optimizer_load_path.exists():
+                optimizer_dict = torch.load(optimizer_load_path)
+                model_optimizer.load_state_dict(optimizer_dict)
+                print('optimizer params from {}'.format(optimizer_load_path))
+
+            else:
+                print('optimizer params from scratch')
 
 
             return models,model_optimizer,model_lr_scheduler
@@ -196,7 +222,7 @@ class Trainer:
                                                                         dataset_opt['split']['train_file'],
                                                                         dataset_opt['split']['val_file']
                                                                         ))
-            print("There are {:d} training items and {:d} validation items\n".format(
+            print("There are {:d} training items and {:d} validation items".format(
                 len(train_dataset), len(val_dataset)))
 
             return train_loader, val_loader
@@ -229,8 +255,8 @@ class Trainer:
 
         self.metrics = {"abs_rel": 0.0,
                         "sq_rel": 0.0,
-                        "rms": 0.0,
-                        "log_rms": 0.0,
+                        "rmse": 0.0,
+                        "rmse_log": 0.0,
                         "a1": 0.0,
                         "a2": 0.0,
                         "a3": 0.0
@@ -288,6 +314,7 @@ class Trainer:
         print("Training is using: ", self.device)
         print("start time: ",self.start_time)
 
+        os.system('cp {} {}/train_settings.yaml'.format(options['yaml_file'], self.checkpoints_path))
 
         #self.save_opts()
 
@@ -485,7 +512,7 @@ class Trainer:
         # decoder
         axisangle, translation = self.models["pose"](features_01)  # b213,b213
         cam_T_cam = transformation_from_parameters(
-            axisangle[:, 0], translation[:, 0], invert=False
+            axisangle[:, 0], translation[:, 0], invert=True
         )  # b44
         outputs[("cam_T_cam", 0, -1)] = cam_T_cam
 
@@ -553,8 +580,8 @@ class Trainer:
 
 
         metrics = compute_depth_errors(depth_gt, depth_pred)
-        for k, v in metrics.items():
-            metrics[k] = np.array(v.cpu())
+        # for k, v in metrics.items():
+        #     metrics[k] = np.array(v.cpu())
         return metrics
 
 
@@ -580,7 +607,7 @@ class Trainer:
         if losses!=None:
             for k, v in losses.items():
                 if k in log_loss:
-                    writer.add_scalar("{}".format(k), v, self.step)
+                    writer.add_scalar("{}".format(k), float(v), self.step)
         if metrics!=None:
             for k,v in metrics.items():
                 if k in log_metrics:
@@ -644,7 +671,7 @@ class Trainer:
             late_phase = self.step % 2000 == 0
 
             #
-            self.logger.train_logger_update(batch= batch_idx,time = duration,names=losses.keys(),values=[item.cpu().data for item in losses.values()])
+            self.logger.train_logger_update(batch= batch_idx,time = duration,dict=losses)
 
             #val, and terminal_val_log, and tb_log
             if early_phase or late_phase:
@@ -687,8 +714,8 @@ class Trainer:
 
         self.logger.epoch_logger_update(epoch=0,
                                         time=0,
-                                        names=self.metrics.keys(),
-                                        values=["{:.4f}".format(float(item)) for item in self.metrics.values()])
+                                        dict=self.metrics
+                                        )
 
         for epoch in range(opts['epoch']):
             epc_st = time.time()
@@ -696,8 +723,8 @@ class Trainer:
             duration = time.time() - epc_st
             self.logger.epoch_logger_update(epoch=epoch+1,
                                             time=duration,
-                                            names=self.metrics.keys(),
-                                            values=["{:.4f}".format(float(item)) for item in self.metrics.values()])
+                                            dict=self.metrics
+                                            )
             if (epoch + 1) % opts['weights_save_frequency'] == 0 :
 
 
@@ -748,8 +775,8 @@ class Trainer:
         duration =time.time() -  time_st
         self.logger.valid_logger_update(batch=self.val_iter._rcvd_idx,
                                         time=duration,
-                                        names=losses.keys(),
-                                        values=[item.cpu().data for item in losses.values()])
+                                        dict=losses
+                                        )
 
 
 
@@ -760,6 +787,7 @@ class Trainer:
             self.tb_log(mode="val",
                         metrics = self.metrics,
                         inputs=inputs,
+                        losses=losses,
                         outputs=outputs)
 
         set_mode(self.models,'train')

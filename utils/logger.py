@@ -96,10 +96,13 @@ class TermLogger(object):
     def reset_valid_bar(self):
         self.valid_bar = ProgressBar(maxval=self.valid_size, fd=self.valid_bar_writer).start()
     #public
-    def epoch_logger_update(self,epoch,time,names,values):
+    def epoch_logger_update(self,epoch,time,dict):
         headers = ''
-        for name in names:
+        for name in dict.keys():
             headers += name + '\t'
+        values=''
+        for v in dict.values():
+            values+='{:.4f}\t'.format(float(v))
         display = '--epochs--[{:d}/{:d}] eduration: {},ETA:{}\n'\
                       .format(epoch,self.n_epochs,self._time_formate(time),self._time_formate(time*(self.n_epochs-epoch))) + \
                   headers + \
@@ -108,10 +111,16 @@ class TermLogger(object):
         self.epoch_bar.update(epoch)
         self.epoch_writer.write(display)
 
-    def valid_logger_update(self,batch,time,names,values):
+    def valid_logger_update(self,batch,time,dict):
         headers = ''
-        for name in names:
+
+        for name in dict.keys():
             headers += name + '\t'
+
+        values = ''
+        for v in dict.values():
+            values += '{:.4f}\t'.format(float(v))
+
         display = '----valid--[{:d}/{:d}] batch time {},ETA:{}\n'\
                       .format(batch+1,self.valid_size,self._time_formate(time),self._time_formate(time*(self.valid_size-batch))) + \
                   headers + \
@@ -120,15 +129,27 @@ class TermLogger(object):
         self.valid_bar.update(batch)
         self.valid_writer.write(display)
 
-    def train_logger_update(self,batch,time,names,values):
+    # def train_logger_update(self,batch,time,names,values):
+    #     headers = ''
+    #     for name in names:
+    #         headers += name + '\t'
+    #     display = '--train--[{:d}/{:d}] batch time: {},ETA:{}\n'.\
+    #                   format(batch+1,self.train_size,self._time_formate(time),self._time_formate(time*(self.train_size-batch)))\
+    #               +headers + '\n{}'.format( values)
+    #
+    #     self.train_bar.update(batch)
+    #     self.train_writer.write(display)
+
+    def train_logger_update(self,batch,time,dict):
         headers = ''
-        for name in names:
+        for name in dict.keys():
             headers += name + '\t'
+        values=''
+        for v in dict.values():
+            values+= '{:.4f}\t'.format(float(v))
         display = '--train--[{:d}/{:d}] batch time: {},ETA:{}\n'.\
                       format(batch+1,self.train_size,self._time_formate(time),self._time_formate(time*(self.train_size-batch)))\
                   +headers + '\n{}'.format( values)
 
         self.train_bar.update(batch)
         self.train_writer.write(display)
-
-

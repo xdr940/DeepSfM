@@ -8,7 +8,7 @@ from __future__ import absolute_import, division, print_function
 
 from my_trainer import Trainer
 from opts.train_opts import train_opts
-from opts.opts_yaml import YamlHandler
+from utils.yaml_wrapper import YamlHandler
 from opts.mc_train_opts import mc_train_opts
 
 
