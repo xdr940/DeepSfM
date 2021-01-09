@@ -33,4 +33,4 @@ def kitti(txt):
 
 if __name__ == '__main__':
     #vsd()
-    kitti(txt = '/home/roit/datasets/splits/eigen_std/test_files.txt')
+    kitti(txt = '/home/roit/datasets/splits/eigen_zhou/test_files.txt')

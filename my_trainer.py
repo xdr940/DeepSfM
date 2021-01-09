@@ -11,7 +11,7 @@ from path import Path
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
-import json
+import matplotlib.pyplot as plt
 import random
 from utils.official import *
 from utils.img_process import tensor2array
@@ -66,42 +66,54 @@ class Trainer:
             scales = model_opt['scales']
             lr = model_opt['lr']
             scheduler_step_size = model_opt['scheduler_step_size']
-            load_models = model_opt['load_models']
-            init_weight_path = model_opt['init_weight_path']
-            encoder_path = model_opt['encoder_path']
+            model_mode = model_opt['mode']
+            load_paths = model_opt['load_paths']
+            optimizer_path = model_opt['optimizer_path']
+
+            if model_mode == 4:
+                #encoder
+                models["encoder"] = networks.ResnetEncoder(
+                    num_layers=18,#resnet18
+                    pretrained=False,
+                    #encoder_path=encoder_path
+                )
+                # depth decoder
+                models["depth"] = networks.DepthDecoder(
+                    num_ch_enc = models["encoder"].num_ch_enc,
+                    scales=scales)
+                # pose encoder
+                models["pose_encoder"] = networks.ResnetEncoder(
+                    num_layers=18,
+                    pretrained=False,
+                    num_input_images=2,
+                #    encoder_path=init_weight_path/'pose_encoder'
+                )
+                # pose decoder
+                models["pose"] = networks.PoseDecoder(
+                    models["pose_encoder"].num_ch_enc,
+                    num_input_features=1,
+                    num_frames_to_predict_for=2)
+            elif model_mode == 0:
+                # encoder
+                models["encoder"] = networks.ResnetEncoder(
+                    num_layers=18,  # resnet18
+                    pretrained=False,
+                    # encoder_path=encoder_path
+                )
+                # depth decoder
+                models["depth"] = networks.DepthDecoder(
+                    num_ch_enc=models["encoder"].num_ch_enc,
+                    scales=scales)
+
+                models["posecnn"] = networks.PoseCNN(
+                    num_input_frames=2)
 
 
 
-            #encoder
-            models["encoder"] = networks.ResnetEncoder(
-                num_layers=18,#resnet18
-                pretrained=False,
-                #encoder_path=encoder_path
-            )
-            models["encoder"].to(device)
 
-            # depth decoder
-            models["depth"] = networks.DepthDecoder(
-                num_ch_enc = models["encoder"].num_ch_enc,
-                scales=scales)
-            models["depth"].to(device)
+            for k,v in models.items():
+                models[k].to(device)
 
-
-            # pose encoder
-            models["pose_encoder"] = networks.ResnetEncoder(
-                num_layers=18,
-                pretrained=False,
-                num_input_images=2,
-            #    encoder_path=init_weight_path/'pose_encoder'
-            )
-            models["pose_encoder"].to(device)
-
-            # pose decoder
-            models["pose"] = networks.PoseDecoder(
-                models["pose_encoder"].num_ch_enc,
-                num_input_features=1,
-                num_frames_to_predict_for=2)
-            models["pose"].to(device)
             # params to train
             parameters_to_train = []
             for k, v in models.items():
@@ -115,32 +127,30 @@ class Trainer:
                 lr
             )  # end models arch
 
-            print('--> load models {}'.format(load_models))
-            # model load
-            if init_weight_path:
-                init_weight_path = Path(init_weight_path)
+            print('--> load models {}'.format(load_paths))
 
-                for name in load_models:
 
-                    path = init_weight_path / name + '.pth'
+            #load models
+            for name,path in load_paths.items():
+                path = load_paths[name]
+                if name in models.keys() and path:
                     model_dict = models[name].state_dict()
                     pretrained_dict = torch.load(path)
                     pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
                     model_dict.update(pretrained_dict)
                     models[name].load_state_dict(model_dict)
-                print("--> Loading weights from {}".format(init_weight_path))
+                print("load {} from {}".format(name,path))
                 # loading adam state
 
-            elif encoder_path:
-                print('--> encoder from {}, others from scratch'.format(encoder_path))
-            else:
-                print('--> train models all from scratch')
 
-            optimizer_load_path = Path('/home/roit/models/adam.pth')
-            if optimizer_load_path.exists():
-                optimizer_dict = torch.load(optimizer_load_path)
+
+
+
+            if optimizer_path:
+                optimizer_path = Path(optimizer_path)
+                optimizer_dict = torch.load(optimizer_path)
                 model_optimizer.load_state_dict(optimizer_dict)
-                print('optimizer params from {}'.format(optimizer_load_path))
+                print('optimizer params from {}'.format(optimizer_path))
 
             else:
                 print('optimizer params from scratch')
@@ -185,7 +195,7 @@ class Trainer:
                 filenames = train_filenames,
                 height=feed_height,
                 width=feed_width,
-                frame_idxs=[0,-1,1],
+                frame_sides=self.frame_sides,#kitti[0,-1,1],mc[-1,0,1]
                 num_scales = 4,
                 is_train=True,
                 img_ext='.png'
@@ -193,7 +203,7 @@ class Trainer:
             train_loader = DataLoader(  # train_datasets:KITTIRAWDataset
                 dataset=train_dataset,
                 batch_size=batch_size,
-                shuffle=False,
+                shuffle=True,
                 num_workers=num_workers,
                 pin_memory=True,
                 drop_last=True
@@ -204,7 +214,7 @@ class Trainer:
                 filenames=val_filenames,
                 height=feed_height,
                 width=feed_width,
-                frame_idxs = self.frame_idxs,
+                frame_sides = self.frame_sides,
                 num_scales = 4,
                 is_train=False,
                 img_ext=img_ext)
@@ -212,13 +222,13 @@ class Trainer:
             val_loader = DataLoader(
                 dataset=val_dataset,
                 batch_size=batch_size,
-                shuffle=True,
+                shuffle=False,
                 num_workers=num_workers,
                 pin_memory=True,
                 drop_last=True)
 
             self.val_iter = iter(val_loader)
-            print("Using split:{}, train_files:{}, val_files:{}".format(split_path,
+            print("Using split:{}, {}, {}".format(split_path,
                                                                         dataset_opt['split']['train_file'],
                                                                         dataset_opt['split']['val_file']
                                                                         ))
@@ -230,9 +240,10 @@ class Trainer:
         #self.opt = options
         self.start_time = datetime.datetime.now().strftime("%m-%d-%H:%M")
         self.checkpoints_path = Path(options['log_dir'])/self.start_time
-        self.frame_idxs = options['frame_idxs']# all around
+        self.frame_sides = options['frame_sides']# all around
 
         self.scales = options['model']['scales']
+        self.model_mode = options['model']['mode']
 
         self.feed_width = options['dataset']['to_width']
         self.feed_height = options['dataset']['to_height']
@@ -244,7 +255,6 @@ class Trainer:
 
         self.tb_log_frequency = options['tb_log_frequency']
         self.weights_save_frequency = options['weights_save_frequency']
-
         #save model and events
 
 
@@ -252,7 +262,7 @@ class Trainer:
         self.device = torch.device(options['model']['device'])
         self.models, self.model_optimizer,self.model_lr_scheduler = model_init(options['model'])
         self.train_loader, self.val_loader = dataset_init(options['dataset'])
-
+        self.dataset_type = options['dataset']['type']
         self.metrics = {"abs_rel": 0.0,
                         "sq_rel": 0.0,
                         "rmse": 0.0,
@@ -325,7 +335,7 @@ class Trainer:
 
 
         scales = self.scales
-        frame_idxs=self.frame_idxs
+        frame_sides=self.frame_sides
 
 
 
@@ -343,7 +353,7 @@ class Trainer:
 
             # reprojection_losses
             reprojection_losses = []
-            for frame_id in [frame_idxs[0],frame_idxs[2]]:
+            for frame_id in [frame_sides[0],frame_sides[2]]:
                 pred = outputs[("color", frame_id, scale)]
                 reprojection_losses.append(compute_reprojection_loss(self.layers['ssim'], pred, target))
 
@@ -351,7 +361,7 @@ class Trainer:
 
             # identity_reprojection_losses
             identity_reprojection_losses = []
-            for frame_id in[frame_idxs[0],frame_idxs[2]]:
+            for frame_id in[frame_sides[0],frame_sides[2]]:
                 pred = inputs[("color", frame_id, source_scale)]
                 identity_reprojection_losses.append(
                     compute_reprojection_loss(self.layers['ssim'], pred, target))
@@ -415,12 +425,12 @@ class Trainer:
             self.width
             self.min_depth
             self.max_depth
-            self.frame_idxs
+            self.frame_sides
             self.device
 
         """
         scales = self.scales
-        frame_idxs = self.frame_idxs
+        frame_sides = self.frame_sides
         height = self.feed_height
         width = self.feed_width
         backproject_depth = self.layers['back_proj_depth']
@@ -440,8 +450,8 @@ class Trainer:
 
             outputs[("depth", 0, scale)] = depth
 
-            for i, frame_id in enumerate([frame_idxs[0],frame_idxs[2]]):
-                T = outputs[("cam_T_cam", 0, frame_id)]
+            for i, frame_side in enumerate([frame_sides[0],frame_sides[2]]):
+                T = outputs[("cam_T_cam", 0, frame_side)]
 
                 # from the authors of https://arxiv.org/abs/1712.00175
 
@@ -455,16 +465,16 @@ class Trainer:
                     T
                 )  # K@D@K_inv
 
-                outputs[("sample", frame_id, scale)] = pix_coords  # rigid_flow
+                outputs[("sample", frame_side, scale)] = pix_coords  # rigid_flow
 
-                outputs[("color", frame_id, scale)] = F.grid_sample(inputs[("color", frame_id, source_scale)],
-                                                                    outputs[("sample", frame_id, scale)],
+                outputs[("color", frame_side, scale)] = F.grid_sample(inputs[("color", frame_side, source_scale)],
+                                                                    outputs[("sample", frame_side, scale)],
                                                                     padding_mode="border", align_corners=True)
 
-                outputs[("color_identity", frame_id, scale)] = inputs[("color", frame_id, source_scale)]
+                outputs[("color_identity", frame_side, scale)] = inputs[("color", frame_side, source_scale)]
 
     #1. forward pass1, more like core
-    def batch_process(self, inputs):
+    def batch_process(self, model_mode,inputs):
         """Pass a minibatch through the network and generate images and losses
         """
 
@@ -485,44 +495,74 @@ class Trainer:
         outputs={}
 
 
-        #depth
-        features = self.models["encoder"](inputs["color_aug", 0, 0])
-        features=tuple(features)
-        depths = self.models["depth"](*features)
-        outputs[("disp", 0, 0)] = depths[0]
-        outputs[("disp", 0, 1)] = depths[1]
-        outputs[("disp", 0, 2)] = depths[2]
-        outputs[("disp", 0, 3)] = depths[3]
+        if model_mode==4:
+            # depth
+            features = self.models["encoder"](inputs["color_aug", 0, 0])
+            features=tuple(features)
+            disp = self.models["depth"](*features)
+            outputs[("disp", 0, 0)] = disp[0]
+            outputs[("disp", 0, 1)] = disp[1]
+            outputs[("disp", 0, 2)] = disp[2]
+            outputs[("disp", 0, 3)] = disp[3]
 
 
-        #pose
-        pose_feats = {f_i: inputs["color_aug", f_i, 0] for f_i in self.frame_idxs}
+            #pose
+            pose_feats = {side: inputs["color_aug", side, 0] for side in self.frame_sides}
 
-        pose_inputs_01 = [pose_feats[-1], pose_feats[0]]
-        pose_inputs_12 = [pose_feats[0], pose_feats[1]]
+            pose_inputs_01 = [pose_feats[-1], pose_feats[0]]
+            pose_inputs_12 = [pose_feats[0], pose_feats[1]]
 
-        frames_01 = torch.cat(pose_inputs_01, 1)
-        frames_12 = torch.cat(pose_inputs_12, 1)
+            frames_01 = torch.cat(pose_inputs_01, 1)
+            frames_12 = torch.cat(pose_inputs_12, 1)
 
-        features_01 = [self.models["pose_encoder"](frames_01)]  # pose_inputs list of 2 [b,3,h,w] i.e b,6,h,w
-        features_12 = [self.models["pose_encoder"](frames_12)]  # pose_inputs list of 2 [b,3,h,w] i.e b,6,h,w
-
-
-
-        # decoder
-        axisangle, translation = self.models["pose"](features_01)  # b213,b213
-        cam_T_cam = transformation_from_parameters(
-            axisangle[:, 0], translation[:, 0], invert=True
-        )  # b44
-        outputs[("cam_T_cam", 0, -1)] = cam_T_cam
+            features_01 = [self.models["pose_encoder"](frames_01)]  # pose_inputs list of 2 [b,3,h,w] i.e b,6,h,w
+            features_12 = [self.models["pose_encoder"](frames_12)]  # pose_inputs list of 2 [b,3,h,w] i.e b,6,h,w
 
 
 
-        axisangle, translation = self.models["pose"](features_12)  # b213,b213
-        cam_T_cam = transformation_from_parameters(
-            axisangle[:, 0], translation[:, 0], invert=False
-        )  # b44
-        outputs[("cam_T_cam", 0, 1)] = cam_T_cam
+            # decoder
+            axisangle, translation = self.models["pose"](features_01)  # b213,b213
+            cam_T_cam = transformation_from_parameters(
+                axisangle[:, 0], translation[:, 0], invert=True
+            )  # b44
+            outputs[("cam_T_cam", 0, -1)] = cam_T_cam
+
+
+
+            axisangle, translation = self.models["pose"](features_12)  # b213,b213
+            cam_T_cam = transformation_from_parameters(
+                axisangle[:, 0], translation[:, 0], invert=False
+            )  # b44
+            outputs[("cam_T_cam", 0, 1)] = cam_T_cam
+        elif model_mode==0:
+            features = self.models["encoder"](inputs["color_aug", 0, 0])
+            features = tuple(features)
+            disp = self.models["depth"](*features)
+            outputs[("disp", 0, 0)] = disp[0]
+            outputs[("disp", 0, 1)] = disp[1]
+            outputs[("disp", 0, 2)] = disp[2]
+            outputs[("disp", 0, 3)] = disp[3]
+
+            # pose
+            pose_feats = {side: inputs["color_aug", side, 0] for side in self.frame_sides}
+
+            pose_inputs_01 = [pose_feats[-1], pose_feats[0]]
+            pose_inputs_12 = [pose_feats[0], pose_feats[1]]
+
+            frames_01 = torch.cat(pose_inputs_01, 1)
+            frames_12 = torch.cat(pose_inputs_12, 1)
+
+            axisangle, translation = self.models['posecnn'](frames_01)
+            cam_T_cam = transformation_from_parameters(
+                axisangle[:, 0], translation[:, 0], invert=True
+            )  # b44
+            outputs[("cam_T_cam", 0, -1)] = cam_T_cam
+
+            axisangle, translation = self.models['posecnn'](frames_12)
+            cam_T_cam = transformation_from_parameters(
+                axisangle[:, 0], translation[:, 0], invert=False
+            )  # b44
+            outputs[("cam_T_cam", 0, 1)] = cam_T_cam
 
 
 
@@ -564,19 +604,20 @@ class Trainer:
         depth_pred = depth_pred.detach()
 
         depth_gt = inputs["depth_gt"]
-        mask = depth_gt > 0
-
+        mask = depth_gt > depth_gt.min()
+        mask*=depth_gt< depth_gt.max()
         # garg/eigen crop#????
         crop_mask = torch.zeros_like(mask)
         if dataset_type =='kitti':#val_dataset
             crop_mask[:, :, 153:371, 44:1197] = 1
             mask = mask * crop_mask
-
-        depth_gt = depth_gt[mask]
-        depth_pred = depth_pred[mask]
+            depth_gt = depth_gt[mask]
+            depth_pred = depth_pred[mask]
+        elif dataset_type =='mc':
+            pass
         depth_pred *= torch.median(depth_gt) / torch.median(depth_pred)
 
-        depth_pred = torch.clamp(depth_pred, min=1e-3, max=80)
+        depth_pred = torch.clamp(depth_pred, min=min_depth, max=max_depth)
 
 
         metrics = compute_depth_errors(depth_gt, depth_pred)
@@ -593,13 +634,13 @@ class Trainer:
             self.writers
             self.batch_size
             self.scales
-            self.frame_idxs
+            self.frame_sides
             self.mask
          """
         log_loss = ['loss']
         log_metrics=['abs_rel','a1']
         log_scales=[0]
-        log_frame_idxs=[0]
+        log_frame_sides=[-1,0,1]
 
 
 
@@ -617,23 +658,28 @@ class Trainer:
 
             for s in log_scales:
                 #color add
-                for frame_id in log_frame_idxs:
+                for frame_side in log_frame_sides:
                     writer.add_image(
-                        "color_{}_{}/{}".format(frame_id, s, b),
-                        inputs[("color", frame_id, s)][b].data, self.step
+                        "color/{}".format(frame_side),
+                        inputs[("color", frame_side, s)][b].data, self.step
                     )
 
                     writer.add_image(
-                        "color_pred_{}_{}/{}".format(-1, s, b),
+                        "color_pred/-1".format(-1, s, b),
                         outputs[("color", -1, s)][b].data, self.step)
                     writer.add_image(
-                        "color_pred_{}_{}/{}".format(1, s, b),
+                        "color_pred/1".format(1, s, b),
                         outputs[("color", 1, s)][b].data, self.step)
 
                 #disp add
                 writer.add_image(
-                    "disp_{}/{}".format(s, b),
-                    normalize_image(outputs[("disp", 0,s)][b]), self.step)
+                    "outputs/{}".format('disp'),
+                    normalize_image(outputs[("disp", 0,s)][b]), self.step
+                )
+                writer.add_image(
+                    "outputs/{}".format('depth'),
+                    normalize_image(outputs[("depth", 0, s)][b]), self.step
+                )
 
 
 
@@ -658,7 +704,7 @@ class Trainer:
         for batch_idx, inputs in enumerate(self.train_loader):
             before_op_time = time.time()
             #model forwardpass
-            outputs, losses = self.batch_process(inputs)#
+            outputs, losses = self.batch_process(self.model_mode,inputs)#
 
             self.model_optimizer.zero_grad()
             losses["loss"].backward()
@@ -679,7 +725,7 @@ class Trainer:
 
                 if "depth_gt" in inputs:
                     #train_set validate
-                    self.metrics.update(self.compute_depth_metrics(inputs, outputs,dataset_type='kitti'))
+                    self.metrics.update(self.compute_depth_metrics(inputs, outputs,dataset_type=self.dataset_type))
                     self.tb_log(mode='train',
                                 metrics=self.metrics,
                                 inputs=inputs,
@@ -769,7 +815,7 @@ class Trainer:
 
         time_st = time.time()
 
-        outputs, losses = self.batch_process(inputs)
+        outputs, losses = self.batch_process(self.model_mode,inputs)
 
 
         duration =time.time() -  time_st
@@ -783,13 +829,14 @@ class Trainer:
 
         if "depth_gt" in inputs:
             #val_set validate
-            self.metrics.update(self.compute_depth_metrics(inputs, outputs,dataset_type='kitti'))
+            self.metrics.update(self.compute_depth_metrics(inputs, outputs,dataset_type=self.dataset_type))
             self.tb_log(mode="val",
                         metrics = self.metrics,
                         inputs=inputs,
                         losses=losses,
                         outputs=outputs)
 
+        del inputs, outputs, losses
         set_mode(self.models,'train')
 
 

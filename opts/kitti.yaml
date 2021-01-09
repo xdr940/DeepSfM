@@ -1,13 +1,15 @@
 model:
   init_weight_path: null
   #init_weight_path: /home/roit/models/monodepth2/mc/06020659/models/weights_9
-  encoder_path: null
-  #encoder_path: '/home/roit/models/torchvision/official/resnet18-5c106cde.pth'
+  #encoder_path: null
+  encoder_path: '/home/roit/models/torchvision/official/resnet18-5c106cde.pth'
   load_models: ['depth','encoder','pose','pose_encoder']
   device: 'cuda'
   scales: [0,1,2,3]
   lr: 0.0001
   scheduler_step_size: 15
+  optimizer_load_path: null
+
 
 dataset:
   type: 'kitti'
@@ -32,10 +34,10 @@ cuda: True
 device: 'cuda'
 epoch: 20
 
-frame_idxs: [-1,0,1]
+frame_sides: [-1,0,1]
 
 yaml_file: /home/roit/aws/aprojects/DeepSfMLearner/opts/train_opts.yaml
-log_dir: '/home/roit/models/monodepth2/kitti'
+log_dir: '/home/roit/models/DeepSfM/kitti'
 tb_log_frequency: 20
 weights_save_frequency: 20
 min_depth: 0.1

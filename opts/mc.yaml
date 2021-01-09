@@ -1,0 +1,43 @@
+model:
+  mode: 0 #[encoder,depth,posecnn]
+  load_paths:
+    encoder: '/home/roit/models/torchvision/official/resnet18-5c106cde.pth'
+    depth: null
+    posecnn: null
+  device: 'cuda'
+  scales: [0,1,2,3]
+  lr: 0.0001
+  scheduler_step_size: 15
+  optimizer_path: null
+
+dataset:
+  type: 'mc'
+  path: '/home/roit/datasets/mc'
+  split:
+    path: '/home/roit/datasets/splits/mc/sildurs_lite'
+    train_file: 'train.txt'
+    val_file: 'val.txt'
+  num_workers: 12
+  batch_size: 8
+  to_height: 192 #same with feed height
+  to_width: 256
+  full_width: 1024
+  full_height: 768
+
+feed_width: 256  #"'width' must be a multiple of 32"
+feed_height: 192 #"'height' must be a multiple of 32"
+
+scales: [0,1,2,3]
+disparity_smoothness: 0.1 #set manual
+cuda: True
+device: 'cuda'
+epoch: 20
+
+frame_sides: [-1,0,1]
+
+yaml_file: /home/roit/aws/aprojects/DeepSfMLearner/opts/mc.yaml
+log_dir: '/home/roit/models/DeepSfM/mc'
+tb_log_frequency: 12
+weights_save_frequency: 20
+min_depth: 0.001
+max_depth: 100.0

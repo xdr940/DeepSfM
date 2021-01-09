@@ -12,7 +12,7 @@ import numpy as np
 import PIL.Image as pil
 
 from kitti_utils import generate_depth_map
-from .mono_dataset import MonoDataset
+from datasets.mono_dataset import MonoDataset
 
 
 class KITTIDataset(MonoDataset):
@@ -63,19 +63,19 @@ class KITTIRAWDataset(KITTIDataset):
 
 
 
-    def get_image_path(self, folder, frame_index, side):
-        f_str = "{:010d}{}".format(frame_index, self.img_ext)
+    def get_image_path(self, folder, frame_side, side):
+        f_str = "{:010d}{}".format(frame_side, self.img_ext)
         image_path = os.path.join(
             self.data_path, folder, "image_0{}/data".format(self.side_map[side]), f_str)
         return image_path
 
-    def get_depth(self, folder, frame_index, side, do_flip):
+    def get_depth(self, folder, frame_side, side, do_flip):
         calib_path = os.path.join(self.data_path, folder.split("/")[0])
 
         velo_filename = os.path.join(
             self.data_path,
             folder,
-            "velodyne_points/data/{:010d}.bin".format(int(frame_index)))
+            "velodyne_points/data/{:010d}.bin".format(int(frame_side)))
 
         depth_gt = generate_depth_map(calib_path, velo_filename, self.side_map[side])
         depth_gt = skimage.transform.resize(

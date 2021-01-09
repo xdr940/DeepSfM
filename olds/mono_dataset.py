@@ -37,7 +37,7 @@ class MonoDataset(data.Dataset):
                  filenames,
                  height,
                  width,
-                 frame_sides,
+                 frame_idxs,
                  num_scales,
                  is_train=False,
                  img_ext='.png'):
@@ -50,7 +50,7 @@ class MonoDataset(data.Dataset):
         self.num_scales = num_scales
         self.interp = Image.ANTIALIAS
 
-        self.frame_sides = frame_sides
+        self.frame_idxs = frame_idxs
 
         self.is_train = is_train#unsuper train or evaluation
         self.img_ext = img_ext
@@ -150,7 +150,7 @@ class MonoDataset(data.Dataset):
 
 
 
-        for i in self.frame_sides:
+        for i in self.frame_idxs:
             inputs[("color", i, -1)] = self.get_color(folder, frame_index + i, side, do_flip)#inputs得到scale == -1的前 中后三帧
 
 
@@ -179,7 +179,7 @@ class MonoDataset(data.Dataset):
 
 
 
-        for i in self.frame_sides:
+        for i in self.frame_idxs:
             del inputs[("color", i, -1)]
             del inputs[("color_aug", i, -1)]
 

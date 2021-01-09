@@ -2,13 +2,10 @@
 
 from __future__ import absolute_import, division, print_function
 
-import os
-import skimage.transform
 import numpy as np
 import PIL.Image as pil
 from path import Path
-import matplotlib.pyplot as plt
-from .mono_dataset import MonoDataset
+from datasets.mono_dataset import MonoDataset
 
 
 class VSDataset(MonoDataset):
