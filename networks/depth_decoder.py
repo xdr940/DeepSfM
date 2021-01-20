@@ -190,3 +190,11 @@ class DepthDecoder2(nn.Module):
         else:
             return ret[0]
 
+def getDepthDecoder(mode=1):
+    if mode ==1:
+        model = DepthDecoder2(
+            num_ch_enc=[64,64,128,256,512],
+            scales=[0,1,2,3]
+        )
+        return model
+

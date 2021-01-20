@@ -43,9 +43,7 @@ class PoseNet(nn.Module):
                 if m.bias is not None:
                     zeros_(m.bias)
 
-    def forward(self, target_image, ref_img):
-        input = [target_image, ref_img]
-        input = torch.cat(input, 1)  # input.shape = 1,6,256,832
+    def forward(self, input):
         out_conv1 = self.conv1(input)  # out_conv1.shape = 1,16,128,416
         out_conv2 = self.conv2(out_conv1)  #
         out_conv3 = self.conv3(out_conv2)  # out_conv2.shape = 1,32,64,208

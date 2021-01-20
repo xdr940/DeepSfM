@@ -1,10 +1,9 @@
 model:
-  mode: 2 #[encoder,depth,posecnn]
+  mode: 1 #[encoder,depth,posecnn]
   load_paths:
-    encoder: null  #'/home/roit/models/torchvision/official/resnet18-5c106cde.pth'
+    encoder: null
     depth: null
     pose: null
-    #posecnn: null
   device: 'cuda'
   scales: [0,1,2,3]
   lr: 0.0001
@@ -13,9 +12,9 @@ model:
 
 dataset:
   type: 'mc'
-  path: '/home/roit/datasets/mcv3'
+  path: '/home/roit/datasets/mc'
   split:
-    path: '/home/roit/datasets/splits/mc/mcv3-sildurs-12345-lite'
+    path: '/home/roit/datasets/splits/mc/mcv3-sildurs-12345'
     train_file: 'train.txt'
     val_file: 'val.txt'
   num_workers: 12

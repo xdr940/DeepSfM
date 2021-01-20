@@ -30,13 +30,13 @@ import torch
 seed = 127
 #random seed
 np.random.seed(seed)
-torch.manual_seed(seed)
-torch.cuda.manual_seed_all(seed)
-random.seed(seed)
-
-torch.backends.cudnn.benchmark = False
-torch.backends.cudnn.deterministic = True
-torch.backends.cudnn.enabled= True
+# torch.manual_seed(seed)
+# torch.cuda.manual_seed_all(seed)
+# random.seed(seed)
+#
+# torch.backends.cudnn.benchmark = False
+# torch.backends.cudnn.deterministic = True
+# torch.backends.cudnn.enabled= True
 
 def set_mode(models, mode):
     """Convert all models to training mode
@@ -105,11 +105,20 @@ class Trainer:
                     num_ch_enc=models["encoder"].num_ch_enc,
                     scales=scales)
 
-                models["posecnn"] = networks.PoseCNN(
-                    num_input_frames=2)
+                models["posecnn"] = networks.PoseNet()
+            elif model_mode ==1:
+                models["encoder"] = networks.getEncoder(model_mode=1)
+                # depth decoder
+                models["depth"] = networks.getDepthDecoder()
+                # pose decoder
+                models["pose"] =networks.getPoseDecoder()
 
-
-
+            elif model_mode ==2:
+                models["encoder"] = networks.getEncoder(model_mode=2)
+                # depth decoder
+                models["depth"] = networks.getDepthDecoder()
+                # pose decoder
+                models["pose"] = networks.getPoseDecoder()
 
             for k,v in models.items():
                 models[k].to(device)
@@ -127,7 +136,7 @@ class Trainer:
                 lr
             )  # end models arch
 
-            print('--> load models {}'.format(load_paths))
+            print('--> load models:')
 
 
             #load models
@@ -139,7 +148,7 @@ class Trainer:
                     pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
                     model_dict.update(pretrained_dict)
                     models[name].load_state_dict(model_dict)
-                print("load {} from {}".format(name,path))
+                print("\t{}:{}".format(name,path))
                 # loading adam state
 
 
@@ -552,18 +561,70 @@ class Trainer:
             frames_01 = torch.cat(pose_inputs_01, 1)
             frames_12 = torch.cat(pose_inputs_12, 1)
 
-            axisangle, translation = self.models['posecnn'](frames_01)
+            pose= self.models['posecnn'](frames_01)
             cam_T_cam = transformation_from_parameters(
-                axisangle[:, 0], translation[:, 0], invert=True
+                pose[:, :3].unsqueeze(1), pose[:, 3:].unsqueeze(1), invert=True
             )  # b44
             outputs[("cam_T_cam", 0, -1)] = cam_T_cam
 
-            axisangle, translation = self.models['posecnn'](frames_12)
+            pose = self.models['posecnn'](frames_12)
             cam_T_cam = transformation_from_parameters(
-                axisangle[:, 0], translation[:, 0], invert=False
+                pose[:, :3].unsqueeze(1), pose[:, 3:].unsqueeze(1), invert=False
+            )  # b44
+            outputs[("cam_T_cam", 0, 1)] = cam_T_cam
+        elif model_mode==1:
+            trip_imgs = torch.cat([inputs["color_aug", -1, 0],
+                               inputs["color_aug", 0, 0],
+                               inputs["color_aug", 1, 0]],
+                              dim=1)
+            features = self.models["encoder"](trip_imgs)
+            features = tuple(features)
+            disp = self.models["depth"](*features)
+            outputs[("disp", 0, 0)] = disp[0]
+            outputs[("disp", 0, 1)] = disp[1]
+            outputs[("disp", 0, 2)] = disp[2]
+            outputs[("disp", 0, 3)] = disp[3]
+
+            # pose
+
+            poses= self.models['pose'](*features)
+
+            cam_T_cam = transformation_from_parameters(
+                poses[:, 0,0,:3].unsqueeze(1), poses[:, 0,0,3:].unsqueeze(1), invert=True
+            )  # b44
+            outputs[("cam_T_cam", 0, -1)] = cam_T_cam
+
+            cam_T_cam = transformation_from_parameters(
+                poses[:, 1,0,:3].unsqueeze(1), poses[:, 1,0,3:].unsqueeze(1), invert=False
             )  # b44
             outputs[("cam_T_cam", 0, 1)] = cam_T_cam
 
+        elif model_mode==2:
+            trip_imgs = torch.cat([inputs["color_aug", -1, 0].unsqueeze(dim=2),
+                               inputs["color_aug", 0, 0].unsqueeze(dim=2),
+                               inputs["color_aug", 1, 0].unsqueeze(dim=2)],
+                              dim=2)
+            features = self.models["encoder"](trip_imgs)
+            features = tuple(features)
+            disp = self.models["depth"](*features)
+            outputs[("disp", 0, 0)] = disp[0]
+            outputs[("disp", 0, 1)] = disp[1]
+            outputs[("disp", 0, 2)] = disp[2]
+            outputs[("disp", 0, 3)] = disp[3]
+
+            # pose
+
+            poses= self.models['pose'](*features)
+
+            cam_T_cam = transformation_from_parameters(
+                poses[:, 0,0,:3].unsqueeze(1), poses[:, 0,0,3:].unsqueeze(1), invert=True
+            )  # b44
+            outputs[("cam_T_cam", 0, -1)] = cam_T_cam
+
+            cam_T_cam = transformation_from_parameters(
+                poses[:, 1,0,:3].unsqueeze(1), poses[:, 1,0,3:].unsqueeze(1), invert=False
+            )  # b44
+            outputs[("cam_T_cam", 0, 1)] = cam_T_cam
 
 
 
@@ -608,7 +669,7 @@ class Trainer:
         mask*=depth_gt< depth_gt.max()
         # garg/eigen crop#????
         crop_mask = torch.zeros_like(mask)
-        if dataset_type =='kitti':#val_dataset
+        if dataset_type =='kitti':#val_dataset, 由于gt缺失, 上半部分不参与
             crop_mask[:, :, 153:371, 44:1197] = 1
             mask = mask * crop_mask
             depth_gt = depth_gt[mask]

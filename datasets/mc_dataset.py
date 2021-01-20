@@ -263,7 +263,7 @@ class MCDataset(MonoDataset):
 
         traj_name,shader,frame = self.relpath_split(self.filenames[0])
 
-        depth_filename =Path(self.data_path)/traj_name/"depth"/"{:05d}.png".format(int(frame))
+        depth_filename =Path(self.data_path)/traj_name/"depth"/"{:04d}.png".format(int(frame))
 
         return depth_filename.exists()
 
@@ -278,7 +278,7 @@ class MCDataset(MonoDataset):
 
     def __get_image_path__(self, folder, side):
         traj,shader,frame = self.relpath_split(folder)
-        reframe = "{:05d}".format(int(frame)+side)
+        reframe = "{:04d}".format(int(frame)+side)
         folder=folder.replace(frame,reframe)
         image_path = Path(self.data_path)/ folder
         return image_path
@@ -298,7 +298,7 @@ class MCDataset(MonoDataset):
     def __get_depth_path__(self, folder, side):
 
         traj, shader, frame = self.relpath_split(folder)
-        reframe = "{:05d}".format(int(frame) + side)
+        reframe = "{:04d}".format(int(frame) + side)
         folder = folder.replace(frame, reframe)
         folder = folder.replace(shader,'depth')
         depth_path = Path(self.data_path) / folder
