@@ -212,7 +212,7 @@ class Trainer:
             train_loader = DataLoader(  # train_datasets:KITTIRAWDataset
                 dataset=train_dataset,
                 batch_size=batch_size,
-                shuffle=True,
+                shuffle=False,
                 num_workers=num_workers,
                 pin_memory=True,
                 drop_last=True
@@ -668,18 +668,21 @@ class Trainer:
         mask = depth_gt > depth_gt.min()
         mask*=depth_gt< depth_gt.max()
         # garg/eigen crop#????
-        crop_mask = torch.zeros_like(mask)
         if dataset_type =='kitti':#val_dataset, 由于gt缺失, 上半部分不参与
+            crop_mask = torch.zeros_like(mask)
             crop_mask[:, :, 153:371, 44:1197] = 1
             mask = mask * crop_mask
-            depth_gt = depth_gt[mask]
-            depth_pred = depth_pred[mask]
+
         elif dataset_type =='mc':
             pass
+
+        depth_gt = depth_gt[mask]
+        depth_pred = depth_pred[mask]
+
         depth_pred *= torch.median(depth_gt) / torch.median(depth_pred)
 
         depth_pred = torch.clamp(depth_pred, min=min_depth, max=max_depth)
-
+        depth_gt = torch.clamp(depth_gt,min=min_depth,max = max_depth)
 
         metrics = compute_depth_errors(depth_gt, depth_pred)
         # for k, v in metrics.items():
@@ -775,7 +778,7 @@ class Trainer:
 
             # log less frequently after the first 2000 steps to save time & disk space
             early_phase = batch_idx % self.tb_log_frequency == 0 and self.step < 2000
-            late_phase = self.step % 2000 == 0
+            late_phase = self.step % 200 == 0
 
             #
             self.logger.train_logger_update(batch= batch_idx,time = duration,dict=losses)

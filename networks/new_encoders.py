@@ -184,8 +184,8 @@ def getEncoder(model_mode):
                              num_input_images=3)
     elif model_mode==2:
         return Res3DEncoder2(layers=[2, 2, 2, 2],
-                             block=models.resnet.BasicBlock,
-                             num_input_images=3)
+                             block=models.resnet.BasicBlock
+                             )
 
 
 

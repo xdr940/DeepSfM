@@ -154,9 +154,15 @@ class MonoDataset(data.Dataset):
 
         #img sides
         for side in self.frame_sides:
-            inputs[("color", side, -1)] = self.get_color(split_line, side,  do_flip)  # inputs得到scale == -1的前 中后三帧
-
-
+            try:
+                if "0021" in split_line:
+                    pass
+                inputs[("color", side, -1)] = self.get_color(split_line, side,  do_flip)  # inputs得到scale == -1的前 中后三帧
+            except:
+                import os
+                os.system('clear')
+                print(split_line)
+                exit(-1)
 
         # adjusting intrinsics to match each scale in the pyramid
         for scale in range(self.num_scales):
@@ -279,7 +285,7 @@ class MCDataset(MonoDataset):
     def __get_image_path__(self, folder, side):
         traj,shader,frame = self.relpath_split(folder)
         reframe = "{:04d}".format(int(frame)+side)
-        folder=folder.replace(frame,reframe)
+        folder = traj+'/'+shader+'/'+reframe+self.img_ext
         image_path = Path(self.data_path)/ folder
         return image_path
 
