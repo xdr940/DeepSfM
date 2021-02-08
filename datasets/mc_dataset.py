@@ -23,7 +23,13 @@ def pil_loader(path):
     with open(path, 'rb') as f:
         with Image.open(f) as img:
             return img.convert('RGB')
-
+def relpath_split(relpath):
+    relpath = relpath.split('/')
+    traj_name=relpath[0]
+    shader = relpath[1]
+    frame = relpath[2]
+    frame=frame.replace('.png','')
+    return traj_name, shader, frame
 
 class MonoDataset(data.Dataset):
     """Superclass for monocular dataloaders
@@ -237,21 +243,22 @@ class MCDataset(MonoDataset):
 
 
 
-        # self.full_res_shape = [800,600]#4:3
         #
         # #400/ fx = tan 35 =0.7 --> fx =571.428
         # #800 * k[0] = 571.428 ->> k0 = 0.714
         # #600* k1 = 571.428, k1 =0.952
+        # self.full_res_shape = [800,600]#4:3
         # self.K = np.array([[0.714, 0, 0.5, 0],
         #                    [0, 0.952, 0.5, 0],
         #                    [0, 0, 1, 0],
         #                    [0, 0, 0, 1]], dtype=np.float32)
 
-        self.full_res_shape = [1024, 768]#4:3
 
         #512/ fx = tan 35 =0.7 --> fx =731.219
         #1024 * k[0] = 731.219 ->> k0 = 1.4
         #768* k1 = 731.219, k1 =0.952
+
+        self.full_res_shape = [1024, 768]#4:3
         self.K = np.array([[0.714, 0, 0.5, 0],
                            [0, 0.952, 0.5, 0],
                            [0, 0, 1, 0],
@@ -267,7 +274,7 @@ class MCDataset(MonoDataset):
 
     def check_depth(self):
 
-        traj_name,shader,frame = self.relpath_split(self.filenames[0])
+        traj_name,shader,frame = relpath_split(self.filenames[0])
 
         depth_filename =Path(self.data_path)/traj_name/"depth"/"{:04d}.png".format(int(frame))
 
@@ -283,7 +290,7 @@ class MCDataset(MonoDataset):
         return color
 
     def __get_image_path__(self, folder, side):
-        traj,shader,frame = self.relpath_split(folder)
+        traj,shader,frame = relpath_split(folder)
         reframe = "{:04d}".format(int(frame)+side)
         folder = traj+'/'+shader+'/'+reframe+self.img_ext
         image_path = Path(self.data_path)/ folder
@@ -303,7 +310,7 @@ class MCDataset(MonoDataset):
 
     def __get_depth_path__(self, folder, side):
 
-        traj, shader, frame = self.relpath_split(folder)
+        traj, shader, frame = relpath_split(folder)
         reframe = "{:04d}".format(int(frame) + side)
         folder = folder.replace(frame, reframe)
         folder = folder.replace(shader,'depth')
@@ -311,10 +318,4 @@ class MCDataset(MonoDataset):
         return depth_path
 
 
-    def relpath_split(self,relpath):
-        relpath = relpath.split('/')
-        traj_name=relpath[0]
-        shader = relpath[1]
-        frame = relpath[2]
-        frame=frame.replace('.png','')
-        return traj_name, shader, frame
+

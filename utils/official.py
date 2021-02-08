@@ -30,7 +30,13 @@ def normalize_image(x):
     mi = float(x.min().cpu().data)
     d = ma - mi if ma != mi else 1e5
     return (x - mi) / d
-
+def np_normalize_image(x):
+    """Rescale image pixels to span range [0, 1]
+    """
+    ma = float(x.max())
+    mi = float(x.min())
+    d = ma - mi if ma != mi else 1e5
+    return (x - mi) / d
 
 def sec_to_hm(t):
     """Convert time in seconds to time in hours, minutes and seconds

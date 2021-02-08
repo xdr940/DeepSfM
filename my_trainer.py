@@ -119,6 +119,12 @@ class Trainer:
                 models["depth"] = networks.getDepthDecoder()
                 # pose decoder
                 models["pose"] = networks.getPoseDecoder()
+            elif model_mode ==3:
+                models["encoder"] = networks.getEncoder(model_mode=3)
+                # depth decoder
+                models["depth"] = networks.getDepthDecoder()
+                # pose decoder
+                models["posecnn"] = networks.PoseNet()
 
             for k,v in models.items():
                 models[k].to(device)
@@ -626,8 +632,32 @@ class Trainer:
             )  # b44
             outputs[("cam_T_cam", 0, 1)] = cam_T_cam
 
+        elif model_mode == 3:
+            trip_imgs = torch.cat([inputs["color_aug", -1, 0],
+                                   inputs["color_aug", 0, 0],
+                                   inputs["color_aug", 1, 0]],
+                                  dim=1)
+            features = self.models["encoder"](trip_imgs)
+            features = tuple(features)
+            disp = self.models["depth"](*features)
+            outputs[("disp", 0, 0)] = disp[0]
+            outputs[("disp", 0, 1)] = disp[1]
+            outputs[("disp", 0, 2)] = disp[2]
+            outputs[("disp", 0, 3)] = disp[3]
 
+            # pose
 
+            pose = self.models['posecnn'](trip_imgs[:,:6,:,:])
+            cam_T_cam = transformation_from_parameters(
+                pose[:, :3].unsqueeze(1), pose[:, 3:].unsqueeze(1), invert=True
+            )  # b44
+            outputs[("cam_T_cam", 0, -1)] = cam_T_cam
+
+            pose = self.models['posecnn'](trip_imgs[:,3:,:,:])
+            cam_T_cam = transformation_from_parameters(
+                pose[:, :3].unsqueeze(1), pose[:, 3:].unsqueeze(1), invert=False
+            )  # b44
+            outputs[("cam_T_cam", 0, 1)] = cam_T_cam
 
 
 
@@ -680,7 +710,11 @@ class Trainer:
         depth_pred = depth_pred[mask]
 
         depth_pred *= torch.median(depth_gt) / torch.median(depth_pred)
-
+        '''
+        for evaluation we multiply the predicted depth maps by a scalar 
+        s_ that matches the median with the ground-truth, i.e. s_ = median(D_gt )/median(D_pred )
+        #移动分布中心? move to the center of gt's distribution 
+        '''
         depth_pred = torch.clamp(depth_pred, min=min_depth, max=max_depth)
         depth_gt = torch.clamp(depth_gt,min=min_depth,max = max_depth)
 
@@ -778,7 +812,7 @@ class Trainer:
 
             # log less frequently after the first 2000 steps to save time & disk space
             early_phase = batch_idx % self.tb_log_frequency == 0 and self.step < 2000
-            late_phase = self.step % 200 == 0
+            late_phase = self.step % 12 == 0
 
             #
             self.logger.train_logger_update(batch= batch_idx,time = duration,dict=losses)

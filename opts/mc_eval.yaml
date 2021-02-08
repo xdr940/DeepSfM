@@ -1,8 +1,8 @@
 model:
   mode: 3 #[encoder,depth,posecnn]
   load_paths:
-    encoder: null  #'/home/roit/models/torchvision/official/resnet18-5c106cde.pth'
-    depth: null
+    encoder: '/home/roit/models/DeepSfM/mc/01-24-22:27/models/weights_29/encoder.pth'
+    depth: '/home/roit/models/DeepSfM/mc/01-24-22:27/models/weights_29/depth.pth'
     #pose: null
     posecnn: null
   device: 'cuda'

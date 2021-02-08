@@ -15,6 +15,58 @@ import torch.utils.model_zoo as model_zoo
 
 
 
+class ResnetEncoder(nn.Module):
+    """Pytorch module for a resnet encoder
+    自己构建, 逻辑完全一样, 就是只限于resnet18,单张输入, 并且改了代码风格
+    """
+    def __init__(self, num_layers, pretrained,encoder_path=None):
+        super(ResnetEncoder, self).__init__()
+
+        self.num_ch_enc = np.array([64, 64, 128, 256, 512])
+
+        resnets = {18: models.resnet18,
+                   34: models.resnet34,
+                   50: models.resnet50,
+                   101: models.resnet101,
+                   152: models.resnet152}
+
+        if num_layers not in resnets:
+            raise ValueError("{} is not a valid number of resnet layers".format(num_layers))
+
+
+        if encoder_path==None:
+            encoder = resnets[num_layers](pretrained)
+        else:
+            encoder = resnets[num_layers]()
+            encoder.load_state_dict(torch.load(encoder_path))
+
+        self.conv1 = encoder.conv1
+        self.bn1 = encoder.bn1
+        self.relu = encoder.relu
+        self.maxpool = encoder.maxpool
+        self.layer1 = encoder.layer1
+        self.layer2 = encoder.layer2
+        self.layer3 = encoder.layer3
+        self.layer4 = encoder.layer4
+
+
+        if num_layers > 34:
+            self.num_ch_enc[1:] *= 4
+
+    def forward(self, input_image):
+        self.features = []
+        x = (input_image - 0.45) / 0.225
+        x = self.conv1(x)
+        x = self.bn1(x)
+        self.features.append(self.relu(x))
+        self.features.append(self.layer1(self.maxpool(self.features[-1])))
+        self.features.append(self.layer2(self.features[-1]))
+        self.features.append(self.layer3(self.features[-1]))
+        self.features.append(self.layer4(self.features[-1]))
+
+        return self.features
+
+
 class Res3DEncoder0(models.ResNet):
     """Pytorch module for a resnet encoder
     """
@@ -178,14 +230,20 @@ class Res3DEncoder2(models.ResNet):
         return self.features
 
 def getEncoder(model_mode):
-    if model_mode==1:
+    if model_mode==1 or model_mode==3:
         return Res3DEncoder1(layers=[2,2,2,2],
                          block=models.resnet.BasicBlock,
                              num_input_images=3)
-    elif model_mode==2:
+    elif model_mode==2 :
         return Res3DEncoder2(layers=[2, 2, 2, 2],
                              block=models.resnet.BasicBlock
                              )
+    elif model_mode==0:
+       return ResnetEncoder(
+            num_layers=18,  # resnet18
+            pretrained=False,
+            # encoder_path=encoder_path
+        )
 
 
 

@@ -5,14 +5,21 @@ import numpy as np
 
 import torch
 from torch.utils.data import DataLoader
+from datasets.mc_dataset import relpath_split
+
+from networks.new_encoders import getEncoder
+from networks.depth_decoder import getDepthDecoder
 
 from networks.layers import disp_to_depth
 from utils.official import readlines
-from opts.md_eval_opts import MD_eval_opts
 import datasets
 import networks
 from tqdm import  tqdm
 from path import Path
+from utils.yaml_wrapper import YamlHandler
+
+import matplotlib.pyplot as plt
+
 cv2.setNumThreads(0)  # This speeds up evaluation 5x on our unix systems (OpenCV 3.3.1)
 
 
@@ -25,6 +32,7 @@ SCALE_FACTOR = 800.
 
 def compute_errors(gt, pred):
     """Computation of error metrics between predicted and ground truth depths
+    input HxW,HxW
     """
     thresh = np.maximum((gt / pred), (pred / gt))
     a1 = (thresh < 1.25     ).mean()
@@ -44,6 +52,7 @@ def compute_errors(gt, pred):
     return abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3
 
 
+
 def batch_post_process_disparity(l_disp, r_disp):
     """Apply the disparity post-processing method as introduced in Monodepthv1
     """
@@ -54,174 +63,148 @@ def batch_post_process_disparity(l_disp, r_disp):
     r_mask = l_mask[:, :, ::-1]
     return r_mask * l_disp + l_mask * r_disp + (1.0 - l_mask - r_mask) * m_disp
 
-@torch.no_grad()
-def evaluate(opt):
-    """Evaluates a pretrained model using a specified test set
-    """
-    MIN_DEPTH = 1e-3
-    MAX_DEPTH = 800.
-    #这里的度量信息是强行将gt里的值都压缩到和scanner一样的量程， 这样会让值尽量接近度量值
-    #但是对于
 
-    if not opt.eval_mono or opt.eval_stereo:print("Please choose mono or stereo evaluation by setting either --eval_mono or --eval_stereo")
+def dict_update(dict):
 
-    splits_dir = Path(opt.root)/'splits'
+    keys = list(dict.keys()).copy()
+    for key in keys:
+        if 'encoder.' in key:
+            new_key = key.replace('encoder.','')
+            dict[new_key] =  dict.pop(key)
 
-    #1. load gt
-    print('\n-> load gt\n')
-    gt_path = Path(splits_dir) / opt.eval_split / "gt_depths.npz"
-    gt_depths = np.load(gt_path,allow_pickle=True)
-    gt_depths = gt_depths["data"]
+    return dict
 
 
-    #2. load img data and predict, output is pred_disps(shape is [nums,1,w,h])
-
-    depth_eval_path = Path(opt.depth_eval_path)
-
-    if not depth_eval_path.exists():print("Cannot find a folder at {}".format(depth_eval_path))
+def model_init(model_path):
+    encoder_path = model_path['encoder']
+    decoder_path = model_path['depth']
 
 
-    print("-> Loading weights from {}".format(depth_eval_path))
-
-
-    #model loading
-    filenames = readlines(splits_dir/opt.eval_split/ "test_files.txt")
-    encoder_path = depth_eval_path/"encoder.pth"
-    decoder_path = depth_eval_path/ "depth.pth"
+    encoder = getEncoder(model_mode=0)
+    depth_decoder = getDepthDecoder(model_mode=1)
 
     encoder_dict = torch.load(encoder_path)
+    encoder_dict = dict_update(encoder_dict)
+    decoder_dict = torch.load(decoder_path)
 
-    encoder = networks.ResnetEncoder(opt.num_layers, False)
-    depth_decoder = networks.DepthDecoder(encoder.num_ch_enc)
+
 
     model_dict = encoder.state_dict()
-    encoder.load_state_dict({k: v for k, v in encoder_dict.items() if k in model_dict})
-    depth_decoder.load_state_dict(torch.load(decoder_path))
+    model_dict_ = {k: v for k, v in encoder_dict.items() if k in model_dict}
+    encoder.load_state_dict(model_dict_)
+
+    model_dict = depth_decoder.state_dict()
+    decoder_dict_ = {k: v for k, v in decoder_dict.items() if k in model_dict}
+    depth_decoder.load_state_dict(decoder_dict_)
+
+
 
     encoder.cuda()
     encoder.eval()
     depth_decoder.cuda()
     depth_decoder.eval()
+    return encoder,depth_decoder
 
+def dataset_init():
     # dataloader
-    dataset = datasets.MCDataset(opt.data_path,
-                                       filenames,
-                                       encoder_dict['height'],
-                                       encoder_dict['width'],
+
+    pass
+
+
+@torch.no_grad()
+def evaluate(opts):
+    """Evaluates a pretrained model using a specified test set
+    """
+    MIN_DEPTH = 1e-3
+    MAX_DEPTH = 800.
+
+    data_path = opts['dataset']['path']
+    num_workers = opts['dataset']['num_workers']
+    feed_height = opts['feed_height']
+    feed_width = opts['feed_width']
+    full_width = opts['dataset']['full_width']
+    full_height = opts['dataset']['full_height']
+
+
+    #这里的度量信息是强行将gt里的值都压缩到和scanner一样的量程， 这样会让值尽量接近度量值
+    #但是对于
+
+
+    data_path = Path(opts['dataset']['path'])
+    lines = Path(opts['dataset']['split']['path'])/'test.txt'
+    model_path = opts['model']['load_paths']
+    encoder,decoder = model_init(model_path)
+    file_names = readlines(lines)
+
+    dataset = datasets.MCDataset(data_path,
+                                       file_names,
+                                       feed_height,
+                                       feed_width,
                                        [0], 4, is_train=False)
     dataloader = DataLoader(dataset,
-                            batch_size=opt.eval_batch_size,
+                            batch_size=2,
                             shuffle=False,
-                            num_workers=opt.num_workers,
+                            num_workers=1,
                             pin_memory=True,
                             drop_last=False)
-
-
-    pred_disps = []
-
-    print("\n-> Computing predictions with size {}x{}\n".format(
-        encoder_dict['width'], encoder_dict['height']))
-
-    #prediction
+    pred_depths=[]
+    gt_depths = []
+    disps = []
     for data in tqdm(dataloader):
         input_color = data[("color", 0, 0)].cuda()
-
-        if opt.post_process:
-            # Post-processed results require each image to have two forward passes
-            input_color = torch.cat((input_color, torch.flip(input_color, [3])), 0)
-
-        output = depth_decoder(encoder(input_color))
-
-        pred_disp, pred_depth = disp_to_depth(output[("disp", 0)], opt.min_depth, opt.max_depth)
-        pred_disp = pred_disp.cpu()[:, 0].numpy()
-        #pred_depth = pred_depth.cpu()[:,0].numpy()
-        if opt.post_process:
-            N = pred_disp.shape[0] // 2
-            pred_disp = batch_post_process_disparity(pred_disp[:N], pred_disp[N:, :, ::-1])
-
-        pred_disps.append(pred_disp)
-    #endfor
-    pred_disps = np.concatenate(pred_disps)
+        features = encoder(input_color)
+        disp = decoder(*features)
 
 
 
-    #
+        depth_gt = data['depth_gt']
+
+        pred_disp, pred_depth = disp_to_depth(disp,min_depth=0.1, max_depth=576.0)
+
+        pred_depth = pred_depth.cpu().numpy()
+        depth_gt = depth_gt.cpu().numpy()
+        disp = disp.cpu().numpy()
+
+        pred_depths.append(pred_depth)
+        gt_depths.append(depth_gt)
+        disps.append(disp)
+    gt_depths = np.concatenate(gt_depths, axis=0)
+    gt_depths = gt_depths.squeeze(axis=1)
 
 
-    #3. evaluation
-    #gt_depths [nums,600,800]
-    #pred_disps [nums,288,384]
-    print("\n-> Evaluating")
+    pred_depths = np.concatenate(pred_depths,axis=0)
+    pred_depths = pred_depths.squeeze(axis=1)
+
+    disps = np.concatenate(disps,axis=0)
+    disps = disps.squeeze(axis=1)
+
+    preds_resized=[]
+    for item in pred_depths:
+        pred_resized = cv2.resize(item, (full_width,full_height))
+        preds_resized.append(np.expand_dims(pred_resized,axis=0))
+    preds_resized = np.concatenate(preds_resized,axis=0)
 
 
-    opt.pred_depth_scale_factor = SCALE_FACTOR
-    print("   Mono evaluation - using median scaling")
+    radomed = gt_depths
 
     errors = []
-    ratios = []
-    nums_evaluate = pred_disps.shape[0]
+    for gt,pred in zip(gt_depths,preds_resized):
+        errors.append(compute_errors(gt, pred))
+    errors = np.array(errors)
 
-    for i in tqdm(range(nums_evaluate)):
+    pass
 
-        gt_depth = gt_depths[i]
-        gt_height, gt_width = gt_depth.shape[:2]
 
-        pred_disp = pred_disps[i]
-        pred_disp = cv2.resize(pred_disp, (gt_width, gt_height))#1271x341 t0 192x640
-        pred_depth = 1 / pred_disp# 也可以根据上面直接得到
 
-        #crop
-        mask = gt_depth >0
 
-        pred_depth = pred_depth[mask]#并reshape成1d
-        gt_depth = gt_depth[mask]
 
-        pred_depth *= opt.pred_depth_scale_factor
 
-        #median scaling
-        if not opt.disable_median_scaling:
-            ratio = np.median(gt_depth) / np.median(pred_depth)#中位数， 在eval的时候， 将pred值线性变化，尽量能使与gt接近即可
-            ratios.append(ratio)
-            pred_depth *= ratio
-
-        pred_depth[pred_depth < MIN_DEPTH] = MIN_DEPTH#所有历史数据中最小的depth, 更新,
-        pred_depth[pred_depth > MAX_DEPTH] = MAX_DEPTH#...
-
-        errors.append(compute_errors(gt_depth, pred_depth))
-
-    '''
-    *255
-   abs_rel |   sq_rel |     rmse | rmse_log |       a1 |       a2 |       a3 | 
-&   0.284  &  14.421  &  40.817  &   0.402  &   0.622  &   0.802  &   0.881  \\
-    
-    *1
-      abs_rel |   sq_rel |     rmse | rmse_log |       a1 |       a2 |       a3 | 
-&   0.284  &   0.057  &   0.160  &   0.402  &   0.622  &   0.802  &   0.881  \\
-
-sq_rel and rmse度量的时候需要进行量级统一
-    
-*800.
-abs_rel |   sq_rel |     rmse | rmse_log |       a1 |       a2 |       a3 | 
-&   0.208  &   17.591  &  57.653  &   0.402  &   0.622  &   0.802  &   0.881  \\
-
-    
-    '''
-
-    #4. precess results, latex style output
-    if not opt.disable_median_scaling:
-        ratios = np.array(ratios)
-        med = np.median(ratios)
-        print("\n Scaling ratios | med: {:0.3f} | std: {:0.3f}\n".format(med, np.std(ratios / med)))
-
-    mean_errors = np.array(errors).mean(0)
-
-    print("\n  " + ("{:>8} | " * 7).format("abs_rel", "sq_rel", "rmse", "rmse_log", "a1", "a2", "a3"))
-    print(("&{: 8.3f}  " * 7).format(*mean_errors.tolist()) + "\\\\")
-    print("\n-> Done!")
 
 
 
 
 if __name__ == "__main__":
-    options = MD_eval_opts()
-    evaluate(options.parse())
+
+    opts = YamlHandler('/home/roit/aws/aprojects/DeepSfMLearner/opts/mc_eval.yaml').read_yaml()
+
+    evaluate(opts)
