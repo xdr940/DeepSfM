@@ -10,7 +10,7 @@ from datasets.mc_dataset import relpath_split
 from networks.new_encoders import getEncoder
 from networks.depth_decoder import getDepthDecoder
 
-from networks.layers import disp_to_depth
+from networks.layers import disp2depth
 from utils.official import readlines
 import datasets
 import networks
@@ -34,6 +34,8 @@ def compute_errors(gt, pred):
     """Computation of error metrics between predicted and ground truth depths
     input HxW,HxW
     """
+    #pred+=1e-4
+    #gt+=1e-4
     thresh = np.maximum((gt / pred), (pred / gt))
     a1 = (thresh < 1.25     ).mean()
     a2 = (thresh < 1.25 ** 2).mean()
@@ -46,6 +48,7 @@ def compute_errors(gt, pred):
     rmse_log = np.sqrt(rmse_log.mean())
 
     abs_rel = np.mean(np.abs(gt - pred) / gt)
+
 
     sq_rel = np.mean(((gt - pred) ** 2) / gt)
 
@@ -81,7 +84,7 @@ def model_init(model_path):
 
 
     encoder = getEncoder(model_mode=0)
-    depth_decoder = getDepthDecoder(model_mode=1)
+    depth_decoder = getDepthDecoder(model_mode=1,mode='test')
 
     encoder_dict = torch.load(encoder_path)
     encoder_dict = dict_update(encoder_dict)
@@ -115,8 +118,8 @@ def dataset_init():
 def evaluate(opts):
     """Evaluates a pretrained model using a specified test set
     """
-    MIN_DEPTH = 1e-3
-    MAX_DEPTH = 800.
+    MIN_DEPTH = 1e-4
+    MAX_DEPTH = 1.
 
     data_path = opts['dataset']['path']
     num_workers = opts['dataset']['num_workers']
@@ -131,7 +134,7 @@ def evaluate(opts):
 
 
     data_path = Path(opts['dataset']['path'])
-    lines = Path(opts['dataset']['split']['path'])/'test.txt'
+    lines = Path(opts['dataset']['split']['path'])/'test2.txt'
     model_path = opts['model']['load_paths']
     encoder,decoder = model_init(model_path)
     file_names = readlines(lines)
@@ -142,7 +145,7 @@ def evaluate(opts):
                                        feed_width,
                                        [0], 4, is_train=False)
     dataloader = DataLoader(dataset,
-                            batch_size=2,
+                            batch_size=16,
                             shuffle=False,
                             num_workers=1,
                             pin_memory=True,
@@ -159,7 +162,8 @@ def evaluate(opts):
 
         depth_gt = data['depth_gt']
 
-        pred_disp, pred_depth = disp_to_depth(disp,min_depth=0.1, max_depth=576.0)
+        #pred_disp, pred_depth = disp_to_depth(disp,min_depth=0.1, max_depth=576.0)
+        pred_depth = disp2depth(disp)
 
         pred_depth = pred_depth.cpu().numpy()
         depth_gt = depth_gt.cpu().numpy()
@@ -175,6 +179,10 @@ def evaluate(opts):
     pred_depths = np.concatenate(pred_depths,axis=0)
     pred_depths = pred_depths.squeeze(axis=1)
 
+
+
+
+
     disps = np.concatenate(disps,axis=0)
     disps = disps.squeeze(axis=1)
 
@@ -187,10 +195,32 @@ def evaluate(opts):
 
     radomed = gt_depths
 
-    errors = []
+    metrics = []
+    ratios=[]
+    cnt=0
     for gt,pred in zip(gt_depths,preds_resized):
-        errors.append(compute_errors(gt, pred))
-    errors = np.array(errors)
+
+        gt[gt < MIN_DEPTH] = MIN_DEPTH
+        gt[gt > MAX_DEPTH] = MAX_DEPTH
+
+        ratio = np.median(gt) / np.median(pred)  # 中位数， 在eval的时候， 将pred值线性变化，尽量能使与gt接近即可
+        ratios.append(ratio)
+        pred *= ratio
+
+        pred[pred < MIN_DEPTH] = MIN_DEPTH
+        pred[pred > MAX_DEPTH] = MAX_DEPTH
+
+
+
+        metric = compute_errors(pred, gt)
+        metrics.append(metric)
+
+    metrics = np.array(metrics)
+    print( np.median(metrics, axis=0))
+
+    ratios = np.array(ratios)
+    med = np.median(ratios)
+    print("\n Scaling ratios | med: {:0.3f} | std: {:0.3f}\n".format(med, np.std(ratios / med)))
 
     pass
 

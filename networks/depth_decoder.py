@@ -134,7 +134,7 @@ class DepthDecoder2(nn.Module):
         x = torch.cat(x, 1)
         x = self.convs[("upconv", 3, 1)](x)
 
-        if self.training:
+        if self.mode == "train":
             ret.append(
                 self.sigmoid(
                     self.convs[("dispconv", 3)](x)
@@ -151,7 +151,7 @@ class DepthDecoder2(nn.Module):
         x = torch.cat(x, 1)
         x = self.convs[("upconv", 2, 1)](x)
 
-        if self.training:
+        if self.mode=="train":
             ret.insert(0,
                 self.sigmoid(
                     self.convs[("dispconv", 2)](x)
@@ -166,7 +166,8 @@ class DepthDecoder2(nn.Module):
         x = torch.cat(x, 1)
         x = self.convs[("upconv", 1, 1)](x)
 
-        if self.training:
+        if self.mode == "train":
+
             ret.insert(0,
                 self.sigmoid(
                     self.convs[("dispconv", 1)](x)
@@ -188,16 +189,17 @@ class DepthDecoder2(nn.Module):
         )
 
 
-        if self.training:
+        if self.mode == "train":
             return ret
         else:
             return ret[0]
 
-def getDepthDecoder(model_mode=1):
+def getDepthDecoder(model_mode=1,mode='train'):
     if model_mode ==1:
         model = DepthDecoder2(
             num_ch_enc=[64,64,128,256,512],
-            scales=[0,1,2,3]
+            scales=[0,1,2,3],
+            mode=mode
         )
         return model
 

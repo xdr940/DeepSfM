@@ -3,7 +3,7 @@ from __future__ import absolute_import, division, print_function
 import os
 import cv2
 import numpy as np
-
+import matplotlib.pyplot as plt#debug
 import torch
 from torch.utils.data import DataLoader
 
@@ -66,11 +66,11 @@ def evaluate(opt):
 
     if not opt.eval_mono or opt.eval_stereo:print("Please choose mono or stereo evaluation by setting either --eval_mono or --eval_stereo")
 
-    splits_dir = Path(opt.root)/'splits'
+    test_dir = Path(opt.test_dir)
 
     #1. load gt
-    print('\n-> load gt:{}\n'.format(opt.eval_split))
-    gt_path = Path(splits_dir) / opt.eval_split / "gt_depths.npz"
+    print('\n-> load gt:{}\n'.format(opt.test_dir))
+    gt_path = test_dir / "gt_depths.npz"
     gt_depths = np.load(gt_path,allow_pickle=True)
     gt_depths = gt_depths["data"]
 
@@ -86,7 +86,7 @@ def evaluate(opt):
 
 
     #model loading
-    filenames = readlines(splits_dir/opt.eval_split/ "test_files.txt")
+    filenames = readlines(test_dir/ opt.test_files)
     encoder_path = depth_eval_path/"encoder.pth"
     decoder_path = depth_eval_path/ "depth.pth"
 
@@ -147,7 +147,7 @@ def evaluate(opt):
 
 
     if opt.save_pred_disps:
-        output_path = depth_eval_path/ "disps_{}_split.npy".format(opt.eval_split)
+        output_path = depth_eval_path/ "disps_{}_split.npy".format(opt.test_dir)
         print("-> Saving predicted disparities to ", output_path)
         np.save(output_path, pred_disps)
 
@@ -155,7 +155,7 @@ def evaluate(opt):
         print("-> Evaluation disabled. Done.")
         quit()
 
-    elif opt.eval_split == 'benchmark':
+    elif test_dir.stem == 'benchmark':
         save_dir = depth_eval_path/ "benchmark_predictions"
         print("-> Saving out benchmark predictions to {}".format(save_dir))
         if not os.path.exists(save_dir):
@@ -180,12 +180,12 @@ def evaluate(opt):
     if opt.eval_stereo:
         print("   Stereo evaluation - "
               "disabling median scaling, scaling by {}".format(STEREO_SCALE_FACTOR))
-        opt.disable_median_scaling = True
+        opt.median_scaling = False
         opt.pred_depth_scale_factor = STEREO_SCALE_FACTOR
     else:
         print("   Mono evaluation - using median scaling")
 
-    errors = []
+    metrics = []
     ratios = []
     nums_evaluate = pred_disps.shape[0]
 
@@ -199,7 +199,7 @@ def evaluate(opt):
         pred_depth = 1 / pred_disp# 也可以根据上面直接得到
 
         #crop
-        if opt.eval_split == "eigen" or opt.eval_split == 'custom':#???,可能是以前很老的
+        if test_dir.stem == "eigen" or test_dir.stem == 'custom':#???,可能是以前很老的
             mask = np.logical_and(gt_depth > MIN_DEPTH, gt_depth < MAX_DEPTH)
 
             crop = np.array([0.40810811 * gt_height, 0.99189189 * gt_height,0.03594771 * gt_width,  0.96405229 * gt_width]).astype(np.int32)
@@ -216,28 +216,28 @@ def evaluate(opt):
         pred_depth *= opt.pred_depth_scale_factor
 
         #median scaling
-        if not opt.disable_median_scaling:
+        if opt.median_scaling:
             ratio = np.median(gt_depth) / np.median(pred_depth)#中位数， 在eval的时候， 将pred值线性变化，尽量能使与gt接近即可
             ratios.append(ratio)
             pred_depth *= ratio
 
         pred_depth[pred_depth < MIN_DEPTH] = MIN_DEPTH#所有历史数据中最小的depth, 更新,
         pred_depth[pred_depth > MAX_DEPTH] = MAX_DEPTH#...
-
-        errors.append(compute_errors(gt_depth, pred_depth))
-
+        metric = compute_errors(gt_depth, pred_depth)
+        metrics.append(metric)
+    metrics = np.array(metrics)
 
 
     #4. precess results, latex style output
-    if not opt.disable_median_scaling:
+    if opt.median_scaling:
         ratios = np.array(ratios)
         med = np.median(ratios)
         print("\n Scaling ratios | med: {:0.3f} | std: {:0.3f}\n".format(med, np.std(ratios / med)))
 
-    mean_errors = np.array(errors).mean(0)
+    mean_metrics = metrics.mean(0)
 
     print("\n  " + ("{:>8} | " * 7).format("abs_rel", "sq_rel", "rmse", "rmse_log", "a1", "a2", "a3"))
-    print(("&{: 8.3f}  " * 7).format(*mean_errors.tolist()) + "\\\\")
+    print(("&{: 8.3f}  " * 7).format(*mean_metrics.tolist()) + "\\\\")
     print("\n-> Done!")
 
 

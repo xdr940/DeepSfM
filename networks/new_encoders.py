@@ -229,7 +229,7 @@ class Res3DEncoder2(models.ResNet):
 
         return self.features
 
-def getEncoder(model_mode):
+def getEncoder(model_mode,test=False):
     if model_mode==1 or model_mode==3:
         return Res3DEncoder1(layers=[2,2,2,2],
                          block=models.resnet.BasicBlock,

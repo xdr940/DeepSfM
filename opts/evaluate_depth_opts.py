@@ -15,7 +15,7 @@ class evaluate_depth_opts:
         self.parser.add_argument("--data_path",
                                  type=str,
                                  #help="path to the training data",
-                                 default='/media/roit/bdcc5f3c-3f95-489e-8a80-90a38ff068b8/home/roit/datasets/kitti/',
+                                 default='/home/roit/datasets/kitti/',
                                  #default = '/home/roit/datasets/MC/'
         )
         self.parser.add_argument("--depth_eval_path",
@@ -38,14 +38,15 @@ class evaluate_depth_opts:
                                  #default="/home/roit/models/monodepth2/checkpoints/05-20-00:06/models/weights_19"
                                  #default = "/home/roit/models/monodepth2/checkpoints/06-02-06:59/models/weights_19"
                                  #default = "/home/roit/models/monodepth2/checkpoints/06-15-22:30/models/weights_24"
-                                 default='/home/roit/models/monodepth2/MC/monodepth2_06021108/models/weights_19',
+                                 default='/home/roit/models/monodepth2_official/mono_640x192',
                                  #default='/media/roit/hard_disk_2/Models/monodepth2_train/06152230/models/weights_14'
 
                                  )
-        self.parser.add_argument("--eval_split",
+        self.parser.add_argument('--test_files',default='test_files.txt')
+        self.parser.add_argument("--test_dir",
                                  type=str,
-                                 default="eigen",  # eigen
-                                 choices=["eigen_zhou","eigen", "eigen_benchmark", "benchmark", "odom_9", "odom_10", "custom", "mc","mc_lite"],
+                                 default="/home/roit/datasets/splits/eigen",  # eigen
+                                 #choices=["eigen_zhou","eigen", "eigen_benchmark", "benchmark", "odom_9", "odom_10", "custom", "mc","mc_lite"],
                                  help="which split to run eval on")
         self.parser.add_argument("--num_layers",
                                  type=int,
@@ -60,9 +61,9 @@ class evaluate_depth_opts:
                                  help="if set evaluates in mono mode",
                                  default=True,
                                  action="store_true")
-        self.parser.add_argument("--disable_median_scaling",
+        self.parser.add_argument("--median_scaling",
                                  help="if set disables median scaling in evaluation",
-                                 action="store_true")
+                                 default=True)
         self.parser.add_argument("--pred_depth_scale_factor",
                                  help="if set multiplies predictions by this number",
                                  type=float,

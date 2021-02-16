@@ -13,20 +13,30 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-
-
-def disp_to_depth(disp, min_depth=0.1, max_depth=80.0):
+def disp_to_depth(disp, min_depth=0.1, max_depth=576.0):
     """Convert network's sigmoid output into depth prediction
     The formula for this conversion is given in the 'additional considerations'
     section of the paper.
-
-    We convert the sigmoid output σ to depth with D = 1/(aσ + b), where a and b are chosen to constrain D between 0.1 and 100 units.
     """
     min_disp = 1 / max_depth
     max_disp = 1 / min_depth
     scaled_disp = min_disp + (max_disp - min_disp) * disp
     depth = 1 / scaled_disp
     return scaled_disp, depth
+
+
+def disp2depth(disp):
+    """
+    官方的有点麻烦, 不清楚, 这里用普通的归一化
+    """
+    depth = 1/disp
+    # min_disp = 1 / max_depth
+    # max_disp = 1 / min_depth
+    # scaled_disp = min_disp + (max_disp - min_disp) * disp
+    #disp = torch.clamp(disp,min=min_disp,max=max_disp)
+    depth = (depth - depth.min())/(depth.max() - depth.min())+1e-4
+    #return scaled_disp, depth
+    return depth
 
 
 def transformation_from_parameters(axisangle, translation, invert=False):

@@ -12,9 +12,9 @@ model:
 
 dataset:
   type: 'mc'
-  path: '/home/roit/datasets/mc'
+  path: '/home/roit/datasets/mcv4'
   split:
-    path: '/home/roit/datasets/splits/mc/mcv3-sildurs-12345'
+    path: '/home/roit/datasets/splits/mc/mcv4-sildurs-12345'
     train_file: 'train.txt'
     val_file: 'val.txt'
   num_workers: 12

@@ -101,7 +101,7 @@ class Trainer:
                     # encoder_path=encoder_path
                 )
                 # depth decoder
-                models["depth"] = networks.DepthDecoder(
+                models["depth"] = networks.DepthDecoder2(
                     num_ch_enc=models["encoder"].num_ch_enc,
                     scales=scales)
 
@@ -462,6 +462,7 @@ class Trainer:
             source_scale = 0
 
             _, depth = disp_to_depth(disp)
+            #depth = disp2depth(disp)
 
             outputs[("depth", 0, scale)] = depth
 
@@ -504,7 +505,6 @@ class Trainer:
         #device
         for key, ipt in inputs.items():
             inputs[key] = ipt.to(self.device)
-
 
 
         outputs={}
