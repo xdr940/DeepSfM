@@ -211,9 +211,11 @@ def evaluate(opts):
         pred[pred > MAX_DEPTH] = MAX_DEPTH
 
 
-
+        if cnt==7:
+            pass
         metric = compute_errors(pred, gt)
         metrics.append(metric)
+        cnt+=1
 
     metrics = np.array(metrics)
     print( np.median(metrics, axis=0))

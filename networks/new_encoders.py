@@ -238,7 +238,7 @@ def getEncoder(model_mode,test=False):
         return Res3DEncoder2(layers=[2, 2, 2, 2],
                              block=models.resnet.BasicBlock
                              )
-    elif model_mode==0:
+    elif model_mode==0 or model_mode ==123:
        return ResnetEncoder(
             num_layers=18,  # resnet18
             pretrained=False,

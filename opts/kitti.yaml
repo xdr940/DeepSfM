@@ -1,7 +1,7 @@
 model:
   mode: 0
   load_paths:
-    encoder: '/home/roit/models/torchvision/official/resnet18-5c106cde.pth'
+    encoder: null #'/home/roit/models/torchvision/official/resnet18-5c106cde.pth'
     depth: null
     #pose_encoder: null #'/home/roit/models/torchvision/official/resnet18-5c106cde.pth'
     #pose: null

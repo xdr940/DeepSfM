@@ -1,5 +1,5 @@
 model:
-  mode: 0 #[encoder,depth,posecnn]
+  mode: 123 #[encoder,depth,posecnn]
   load_paths:
     encoder: null  #'/home/roit/models/torchvision/official/resnet18-5c106cde.pth'
     depth: null
@@ -8,7 +8,7 @@ model:
   device: 'cuda'
   scales: [0,1,2,3]
   lr: 0.0001
-  scheduler_step_size: 15
+  scheduler_step_size: 25
   optimizer_path: null
 
 dataset:

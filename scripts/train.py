@@ -14,8 +14,8 @@ from opts.mc_train_opts import mc_train_opts
 
 
 def main2():
-    opts = YamlHandler('/home/roit/aws/aprojects/DeepSfMLearner/opts/mc.yaml').read_yaml()
-    #opts = YamlHandler('/home/roit/aws/aprojects/DeepSfMLearner/opts/kitti.yaml').read_yaml()
+    #opts = YamlHandler('/home/roit/aws/aprojects/DeepSfMLearner/opts/mc.yaml').read_yaml()
+    opts = YamlHandler('/home/roit/aws/aprojects/DeepSfMLearner/opts/kitti.yaml').read_yaml()
 
     trainer = Trainer(opts)
     trainer(opts)

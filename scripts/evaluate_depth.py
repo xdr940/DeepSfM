@@ -130,10 +130,10 @@ def evaluate(opt):
         if opt.post_process:
             # Post-processed results require each image to have two forward passes
             input_color = torch.cat((input_color, torch.flip(input_color, [3])), 0)
-
+        #eval 0
         output = depth_decoder(encoder(input_color))
-
-        pred_disp, pred_depth = disp_to_depth(output[("disp", 0)], opt.min_depth, opt.max_depth)
+        #eval 1
+        pred_disp, pred_depth_tmp = disp_to_depth(output[("disp", 0)], opt.min_depth, opt.max_depth)
         pred_disp = pred_disp.cpu()[:, 0].numpy()
         #pred_depth = pred_depth.cpu()[:,0].numpy()
         if opt.post_process:
@@ -195,6 +195,8 @@ def evaluate(opt):
         gt_height, gt_width = gt_depth.shape[:2]
 
         pred_disp = pred_disps[i]
+
+        #eval2
         pred_disp = cv2.resize(pred_disp, (gt_width, gt_height))#1271x341 t0 128x640
         pred_depth = 1 / pred_disp# 也可以根据上面直接得到
 
@@ -209,7 +211,7 @@ def evaluate(opt):
 
         else:
             mask = gt_depth > 0
-
+        #eval3
         pred_depth = pred_depth[mask]#并reshape成1d
         gt_depth = gt_depth[mask]
 

@@ -126,6 +126,11 @@ class Trainer:
                 # pose decoder
                 models["posecnn"] = networks.PoseNet()
 
+            elif model_mode == 123:
+                #supervised model
+                models["encoder"] =  networks.getEncoder(model_mode=0)
+                models["depth"] = networks.getDepthDecoder()
+
             for k,v in models.items():
                 models[k].to(device)
 
@@ -345,7 +350,7 @@ class Trainer:
 
         #custom
 
-    def compute_losses_f(self,inputs, outputs):
+    def compute_losses(self,inputs, outputs):
 
 
 
@@ -430,7 +435,38 @@ class Trainer:
         total_loss /= len(scales)
         losses["loss"] = total_loss
         return losses
+    def compute_losses_spv(self,inputs, outputs):
 
+        scales = self.scales
+
+
+
+        losses = {}
+        total_loss = 0
+        height,width = inputs[('color',0,0)].shape[2:]
+        depth_gt_feed = F.interpolate(inputs["depth_gt"],[height,width], mode="bilinear", align_corners=False)
+        for scale in scales:
+
+
+            disp = outputs[("disp", 0, scale)]
+            disp = F.interpolate(disp, [height, width], mode="bilinear", align_corners=False)
+            depth  = disp2depth(disp)
+            if scale ==0:
+                outputs[("depth",0,scale)] = depth
+
+            to_optimise =  compute_reprojection_loss(self.layers['ssim'], depth, depth_gt_feed)
+
+            #to_optimise = (depth_gt_feed - depth).abs()**2
+
+
+            loss = to_optimise.mean()/(2**scale)
+
+            total_loss += loss
+            losses["loss/{}".format(scale)] = loss
+
+        total_loss /= len(scales)
+        losses["loss"] = total_loss
+        return  losses
     def generate_images_pred(self,inputs, outputs):
         """Generate the warped (reprojected) color images for a minibatch.
         Generated images are saved into the `outputs` dictionary as color_identity.
@@ -497,7 +533,7 @@ class Trainer:
         #self.device
         #self.models
         #self.generate_images_pred
-        #self.compute_losses_f
+        #self.compute_losses
 
 
 
@@ -659,12 +695,23 @@ class Trainer:
             )  # b44
             outputs[("cam_T_cam", 0, 1)] = cam_T_cam
 
-
+        elif model_mode ==123:
+            features = self.models["encoder"](inputs["color_aug", 0, 0])
+            features = tuple(features)
+            disp = self.models["depth"](*features)
+            outputs[("disp", 0, 0)] = disp[0]
+            outputs[("disp", 0, 1)] = disp[1]
+            outputs[("disp", 0, 2)] = disp[2]
+            outputs[("disp", 0, 3)] = disp[3]
 
 
         #4.
-        self.generate_images_pred(inputs, outputs)#outputs get
-        losses = self.compute_losses_f(inputs, outputs)
+        if model_mode!=123:
+            self.generate_images_pred(inputs, outputs)#outputs get depth 0 0
+            losses = self.compute_losses(inputs, outputs)
+        elif model_mode==123:
+            losses = self.compute_losses_spv(inputs, outputs)
+
 
         return outputs, losses
 
@@ -738,7 +785,9 @@ class Trainer:
         log_loss = ['loss']
         log_metrics=['abs_rel','a1']
         log_scales=[0]
-        log_frame_sides=[-1,0,1]
+        #log_frame_sides=[-1,0,1]
+        log_frame_sides=[0]
+
 
 
 
@@ -757,17 +806,16 @@ class Trainer:
             for s in log_scales:
                 #color add
                 for frame_side in log_frame_sides:
-                    writer.add_image(
-                        "color/{}".format(frame_side),
-                        inputs[("color", frame_side, s)][b].data, self.step
-                    )
-
-                    writer.add_image(
-                        "color_pred/-1".format(-1, s, b),
-                        outputs[("color", -1, s)][b].data, self.step)
-                    writer.add_image(
-                        "color_pred/1".format(1, s, b),
-                        outputs[("color", 1, s)][b].data, self.step)
+                    if frame_side==0:
+                        writer.add_image(
+                            "color/{}".format(frame_side),
+                            inputs[("color", frame_side, s)][b].data, self.step
+                        )
+                    else:
+                        writer.add_image(
+                            "color_pred/{}".format(frame_side, s, b),
+                            outputs[("color", frame_side, s)][b].data, self.step
+                        )
 
                 #disp add
                 writer.add_image(

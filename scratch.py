@@ -1,7 +1,7 @@
-
 import torch
-dict = {"a":1.0,"b":2.0}
+import torch.nn.functional as F
+arr = torch.linspace(1,20,20).reshape([1,1,4,5])
+print(arr)
 
-dict['c'] = dict.pop('a')
-
-print(dict)
+arr_sub = F.interpolate(arr, [3,3], mode="bilinear", align_corners=False)
+print(arr_sub)
