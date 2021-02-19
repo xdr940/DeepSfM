@@ -134,3 +134,5 @@ class KITTIDepthDataset(KITTIDataset):
             depth_gt = np.fliplr(depth_gt)
 
         return depth_gt
+
+

@@ -10,7 +10,7 @@ from datasets.mc_dataset import relpath_split
 from networks.new_encoders import getEncoder
 from networks.depth_decoder import getDepthDecoder
 
-from networks.layers import disp2depth
+from networks.layers import disp2depth,disp_to_depth
 from utils.official import readlines
 import datasets
 import networks
@@ -27,7 +27,6 @@ cv2.setNumThreads(0)  # This speeds up evaluation 5x on our unix systems (OpenCV
 # Models which were trained with stereo supervision were trained with a nominal
 # baseline of 0.1 units. The KITTI rig has a baseline of 54cm. Therefore,
 # to convert our stereo predictions to real-world scale we multiply our depths by 5.4.
-SCALE_FACTOR = 800.
 
 
 def compute_errors(gt, pred):
@@ -118,8 +117,8 @@ def dataset_init():
 def evaluate(opts):
     """Evaluates a pretrained model using a specified test set
     """
-    MIN_DEPTH = 1e-4
-    MAX_DEPTH = 1.
+    MIN_DEPTH = opts['min_depth']
+    MAX_DEPTH = opts['max_depth']
 
     data_path = opts['dataset']['path']
     num_workers = opts['dataset']['num_workers']
@@ -134,16 +133,33 @@ def evaluate(opts):
 
 
     data_path = Path(opts['dataset']['path'])
-    lines = Path(opts['dataset']['split']['path'])/'test2.txt'
+    lines = Path(opts['dataset']['split']['path'])/opts['dataset']['split']['test_file']
     model_path = opts['model']['load_paths']
     encoder,decoder = model_init(model_path)
     file_names = readlines(lines)
 
-    dataset = datasets.MCDataset(data_path,
+    print('-> dataset_path:{}'.format(data_path))
+    print('-> model_path:{}'.format(opts['model']['load_paths']))
+
+    if opts['dataset']['type']=='mc':
+        dataset = datasets.MCDataset(data_path,
                                        file_names,
                                        feed_height,
                                        feed_width,
                                        [0], 4, is_train=False)
+    elif opts['dataset']['type']=='kitti':
+
+        dataset = datasets.KITTIRAWDataset (  # KITTIRAWData
+            data_path=data_path,
+            filenames=file_names,
+            height=feed_height,
+            width=feed_width,
+            frame_sides=[0,-1,1],  # kitti[0,-1,1],mc[-1,0,1]
+            num_scales=4,
+            is_train=False,
+            img_ext='.png'
+        )
+
     dataloader = DataLoader(dataset,
                             batch_size=16,
                             shuffle=False,
@@ -162,8 +178,8 @@ def evaluate(opts):
 
         depth_gt = data['depth_gt']
 
-        #pred_disp, pred_depth = disp_to_depth(disp,min_depth=0.1, max_depth=576.0)
-        pred_depth = disp2depth(disp)
+        pred_disp, pred_depth = disp_to_depth(disp,min_depth=MIN_DEPTH, max_depth=MAX_DEPTH)
+        #pred_depth = disp2depth(disp)
 
         pred_depth = pred_depth.cpu().numpy()
         depth_gt = depth_gt.cpu().numpy()
@@ -211,8 +227,6 @@ def evaluate(opts):
         pred[pred > MAX_DEPTH] = MAX_DEPTH
 
 
-        if cnt==7:
-            pass
         metric = compute_errors(pred, gt)
         metrics.append(metric)
         cnt+=1
@@ -237,6 +251,6 @@ def evaluate(opts):
 
 if __name__ == "__main__":
 
-    opts = YamlHandler('/home/roit/aws/aprojects/DeepSfMLearner/opts/mc_eval.yaml').read_yaml()
+    opts = YamlHandler('/home/roit/aws/aprojects/DeepSfMLearner/opts/kitti_eval.yaml').read_yaml()
 
     evaluate(opts)

@@ -8,7 +8,7 @@ model:
     posecnn: null
   device: 'cuda'
   scales: [0,1,2,3]
-  lr: 0.0001
+  lr: 0.1
   scheduler_step_size: 15
   optimizer_path: null
 
@@ -18,7 +18,7 @@ dataset:
   path: '/home/roit/datasets/kitti'
   split:
     path: '/home/roit/datasets/splits/eigen_zhou'
-    train_file: 'train_files.txt'
+    train_file: 'val_files.txt'
     val_file: 'val_files.txt'
   num_workers: 12
   batch_size: 8

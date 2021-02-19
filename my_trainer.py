@@ -497,7 +497,7 @@ class Trainer:
                 disp, [height, width], mode="bilinear", align_corners=False)
             source_scale = 0
 
-            _, depth = disp_to_depth(disp)
+            _, depth = disp_to_depth(disp,min_depth=self.min_depth,max_depth=self.max_depth)
             #depth = disp2depth(disp)
 
             outputs[("depth", 0, scale)] = depth
@@ -745,7 +745,7 @@ class Trainer:
         mask = depth_gt > depth_gt.min()
         mask*=depth_gt< depth_gt.max()
         # garg/eigen crop#????
-        if dataset_type =='kitti':#val_dataset, 由于gt缺失, 上半部分不参与
+        if dataset_type =='kitti2':#val_dataset, 由于gt缺失, 上半部分不参与
             crop_mask = torch.zeros_like(mask)
             crop_mask[:, :, 153:371, 44:1197] = 1
             mask = mask * crop_mask
@@ -783,7 +783,14 @@ class Trainer:
             self.mask
          """
         log_loss = ['loss']
-        log_metrics=['abs_rel','a1']
+        log_metrics=[
+            "abs_rel",
+            "sq_rel",
+            "rmse",
+            "rmse_log",
+            "a1",
+            "a2",
+            "a3"]
         log_scales=[0]
         #log_frame_sides=[-1,0,1]
         log_frame_sides=[0]
@@ -799,7 +806,11 @@ class Trainer:
         if metrics!=None:
             for k,v in metrics.items():
                 if k in log_metrics:
-                    writer.add_scalar("{}".format(k), v, self.step)
+                    if k in ['a1','a2','a3']:
+                        writer.add_scalar("acc/{}".format(k), v, self.step)
+                    elif k in ['abs_rel','sq_rel','rmse','rmse_log']:
+                        writer.add_scalar("err/{}".format(k), v, self.step)
+
         if inputs!=None or outputs!=None:
             b=0# int(random.random()*8)
 

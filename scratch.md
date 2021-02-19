@@ -26,6 +26,12 @@ evaluate_depth.py
     metric = compute_errors(gt_depth, pred_depth)
 
 
+
+
+
+
+
+
 trainer.py
 #step 0 batch_process
 	disp = self.models["depth"](*features)
@@ -50,6 +56,7 @@ trainer.py
               min=min_depth,
               max=max_depth
           )
+
 mask = depth_gt > depth_gt.min()
 mask*=depth_gt< depth_gt.max()
 
@@ -60,7 +67,7 @@ depth_pred = depth_pred[mask]
 
 depth_pred *= torch.median(depth_gt) / torch.median(depth_pred)
 
-depth_pred = torch.clamp(depth_pred, min=min_depth, max=max_depth)
+depth_pred = torch.clamp(depth_pred, min=min_depth, max=max_depth)#截断
 depth_gt = torch.clamp(depth_gt,min=min_depth,max = max_depth)
 
 metrics = compute_depth_errors(depth_gt, depth_pred)

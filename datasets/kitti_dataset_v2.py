@@ -7,7 +7,7 @@ import numpy as np
 import PIL.Image as pil
 from path import Path
 import matplotlib.pyplot as plt
-
+import os
 
 import random
 from PIL import Image  # using pillow-simd for increased speed
@@ -15,6 +15,7 @@ from PIL import Image  # using pillow-simd for increased speed
 import torch
 import torch.utils.data as data
 from torchvision import transforms
+from kitti_utils import generate_depth_map
 
 
 def pil_loader(path):
@@ -25,11 +26,12 @@ def pil_loader(path):
             return img.convert('RGB')
 def relpath_split(relpath):
     relpath = relpath.split('/')
-    traj_name=relpath[0]
-    shader = relpath[1]
-    frame = relpath[2]
-    frame=frame.replace('.png','')
-    return traj_name, shader, frame
+    date=relpath[0]
+    scene = relpath[1]
+    camera = relpath[2]
+    #data
+    frame = relpath[4]
+    return date,scene,camera,frame
 
 class MonoDataset(data.Dataset):
     """Superclass for monocular dataloaders
@@ -222,59 +224,34 @@ class MonoDataset(data.Dataset):
     def get_depth(self, line, side, do_flip):
         raise NotImplementedError
 
-class MCDataset(MonoDataset):
+class KITTIRAWDataset(MonoDataset):
     def __init__(self,*args,**kwargs):
-        super(MCDataset,self).__init__(*args,**kwargs)
-
-        #self.full_res_shape = [1920,1080]#
-
-        #
-        # FOV = 35d
-        # 960 = 1920/2
-        # 960/fx = tan 35 =0.7-> fx = 1371
-        #
-        # 1920 * k[0] = 1371-> k0 = 0.714
-        # 1080 * k[1 ]= 1371 -> k1 = 1.27
-        # self.K=np.array([[0.714, 0, 0.5, 0],
-        #                   [0, 1.27, 0.5, 0],
-        #                   [0, 0, 1, 0],
-        #                   [0, 0, 0, 1]], dtype=np.float32)
-
-
-
-
-        #
-        # #400/ fx = tan 35 =0.7 --> fx =571.428
-        # #800 * k[0] = 571.428 ->> k0 = 0.714
-        # #600* k1 = 571.428, k1 =0.952
-        # self.full_res_shape = [800,600]#4:3
-        # self.K = np.array([[0.714, 0, 0.5, 0],
-        #                    [0, 0.952, 0.5, 0],
-        #                    [0, 0, 1, 0],
-        #                    [0, 0, 0, 1]], dtype=np.float32)
-
-
-        #512/ fx = tan 35 =0.7 --> fx =731.219
-        #1024 * k[0] = 731.219 ->> k0 = 1.4
-        #768* k1 = 731.219, k1 =0.952
-
-        self.full_res_shape = [1024, 768]#4:3
-        self.K = np.array([[0.714, 0, 0.5, 0],
-                           [0, 0.952, 0.5, 0],
+        super(KITTIRAWDataset,self).__init__(*args,**kwargs)
+        self.K = np.array([[0.58, 0, 0.5, 0],
+                           [0, 1.92, 0.5, 0],
                            [0, 0, 1, 0],
                            [0, 0, 0, 1]], dtype=np.float32)
 
 
-        self.img_ext='.png'
-        self.depth_ext = '.png'
+        self.full_res_shape = [1242, 375]
+        self.side_map = {"2": 2, "3": 3, "image_02": 2, "image_03": 3}
+
 
 
 
     def check_depth(self):
 
-        traj_name,shader,frame = relpath_split(self.filenames[0])
+        date,scene,sensor,frame = relpath_split(self.filenames[0])
+        sensor = 'velodyne_points'
+        velo_filename = os.path.join(
+            date,
+            scene,
+            sensor,
+            'data',
+            "{:010d}.bin".format(int(frame)))
 
-        depth_filename =Path(self.data_path)/traj_name/"depth"/"{:04d}.png".format(int(frame))
+
+        depth_filename =Path(self.data_path)/velo_filename
 
         return depth_filename.exists()
 
@@ -289,28 +266,51 @@ class MCDataset(MonoDataset):
 
 
 
-    def get_depth(self, line, side,  do_flip):
-        path = self.__get_depth_path__(line, side)
-        depth_gt = plt.imread(path)
-        depth_gt = np.mean(depth_gt, axis=2)
-        depth_gt = skimage.transform.resize(depth_gt, self.full_res_shape[::-1], order=0, preserve_range=True, mode='constant')
+    def get_depth(self, line, sensor,  do_flip):
+        date,scene,sensor,frame = relpath_split(self.filenames[0])
+        velo_filename = os.path.join(
+            date,
+            scene,
+            "velodyne_points",
+            'data',
+            "{:010d}.bin".format(int(frame)))
+        calib_path = os.path.join(
+            self.data_path,
+            date
+        )
+
+        depth_gt = generate_depth_map(calib_path, velo_filename, self.side_map[sensor])
+
+        depth_gt = skimage.transform.resize(
+            depth_gt, self.full_res_shape[::-1], order=0, preserve_range=True, mode='constant')
 
         if do_flip:
             depth_gt = np.fliplr(depth_gt)
-        return depth_gt*100#[0~1]
+
+        return depth_gt
 
 
     def __get_image_path__(self, line, side):
-        traj,shader,frame = relpath_split(line)
+        date, scene, sensor, frame = relpath_split(line)
+
+
+
         reframe = "{:04d}".format(int(frame)+side)
-        line = traj+'/'+shader+'/'+reframe+self.img_ext
-        image_path = Path(self.data_path)/ line
+
+        path = os.path.join(
+            date,
+            scene,
+            sensor,
+            'data',
+            reframe
+
+        )
+        image_path = Path(self.data_path)/ path
         return image_path
 
 
     def __get_depth_path__(self, line, side):
-
-        traj, shader, frame = relpath_split(line)
+        date, scene, sensor, frame = relpath_split(line)
         reframe = "{:04d}".format(int(frame) + side)
         line = line.replace(frame, reframe)
         line = line.replace(shader,'depth')

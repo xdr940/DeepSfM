@@ -267,25 +267,40 @@ class SSIM(nn.Module):
         return torch.clamp((1 - SSIM_n / SSIM_d) / 2, 0, 1)
 
 
-def compute_depth_errors(gt, pred):
+def compute_depth_errors(gt, pred,mode='median'):
     """Computation of error metrics between predicted and ground truth depths
     """
     metrics={}
 
     thresh = torch.max((gt / pred), (pred / gt))
-    metrics['a1'] = (thresh < 1.25     ).float().mean()
+    metrics['a1'] = (thresh < 1.25).float().mean()
     metrics['a2'] = (thresh < 1.25 ** 2).float().mean()
     metrics['a3'] = (thresh < 1.25 ** 3).float().mean()
 
     rmse = (gt - pred) ** 2
-    metrics['rmse'] = torch.sqrt(rmse.mean())
+    if mode =='mean':
 
-    rmse_log = (torch.log(gt) - torch.log(pred)) ** 2
-    metrics['rmse_log'] = torch.sqrt(rmse_log.mean())
+        metrics['rmse'] = torch.sqrt(rmse.mean())
 
-    metrics['abs_rel'] = torch.mean(torch.abs(gt - pred) / gt)
+        rmse_log = (torch.log(gt) - torch.log(pred)) ** 2
+        metrics['rmse_log'] = torch.sqrt(rmse_log.mean())
 
-    metrics['sq_rel'] = torch.mean((gt - pred) ** 2 / gt)
+        metrics['abs_rel'] = torch.mean(torch.abs(gt - pred) / gt)
+
+        metrics['sq_rel'] = torch.mean((gt - pred) ** 2 / gt)
+
+    else:
+
+
+
+        metrics['rmse'] = torch.sqrt(rmse.median())
+
+        rmse_log = (torch.log(gt) - torch.log(pred)) ** 2
+        metrics['rmse_log'] = torch.sqrt(rmse_log.median())
+
+        metrics['abs_rel'] = torch.median(torch.abs(gt - pred) / gt)
+
+        metrics['sq_rel'] = torch.median((gt - pred) ** 2 / gt)
 
     return metrics
 

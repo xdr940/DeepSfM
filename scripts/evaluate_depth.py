@@ -14,6 +14,8 @@ import datasets
 import networks
 from tqdm import  tqdm
 from path import Path
+from utils.yaml_wrapper import YamlHandler
+
 cv2.setNumThreads(0)  # This speeds up evaluation 5x on our unix systems (OpenCV 3.3.1)
 
 
@@ -59,8 +61,15 @@ def batch_post_process_disparity(l_disp, r_disp):
 def evaluate(opt):
     """Evaluates a pretrained model using a specified test set
     """
-    MIN_DEPTH = 1e-3
-    MAX_DEPTH = 80
+    MIN_DEPTH = opts['min_depth']
+    MAX_DEPTH = opts['max_depth']
+
+    data_path = opts['dataset']['path']
+    num_workers = opts['dataset']['num_workers']
+    feed_height = opts['feed_height']
+    feed_width = opts['feed_width']
+    full_width = opts['dataset']['full_width']
+    full_height = opts['dataset']['full_height']
     #这里的度量信息是强行将gt里的值都压缩到和scanner一样的量程， 这样会让值尽量接近度量值
     #但是对于
 
@@ -246,5 +255,6 @@ def evaluate(opt):
 
 
 if __name__ == "__main__":
-    options = evaluate_depth_opts()
-    evaluate(options.parse())
+    opts = YamlHandler('/home/roit/aws/aprojects/DeepSfMLearner/opts/kitti_eval.yaml').read_yaml()
+
+    evaluate(opts)
