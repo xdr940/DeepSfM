@@ -121,6 +121,8 @@ def evaluate(opts):
     MAX_DEPTH = opts['max_depth']
 
     data_path = opts['dataset']['path']
+    batch_size = opts['dataset']['batch_size']
+
     num_workers = opts['dataset']['num_workers']
     feed_height = opts['feed_height']
     feed_width = opts['feed_width']
@@ -150,20 +152,19 @@ def evaluate(opts):
     elif opts['dataset']['type']=='kitti':
 
         dataset = datasets.KITTIRAWDataset (  # KITTIRAWData
-            data_path=data_path,
-            filenames=file_names,
-            height=feed_height,
-            width=feed_width,
-            frame_sides=[0,-1,1],  # kitti[0,-1,1],mc[-1,0,1]
-            num_scales=4,
-            is_train=False,
-            img_ext='.png'
+            data_path,
+            file_names,
+            feed_height,
+            feed_width,
+            [0],
+            4,
+            is_train=False
         )
 
     dataloader = DataLoader(dataset,
-                            batch_size=16,
+                            batch_size=batch_size,
                             shuffle=False,
-                            num_workers=1,
+                            num_workers=num_workers,
                             pin_memory=True,
                             drop_last=False)
     pred_depths=[]
@@ -183,11 +184,9 @@ def evaluate(opts):
 
         pred_depth = pred_depth.cpu().numpy()
         depth_gt = depth_gt.cpu().numpy()
-        disp = disp.cpu().numpy()
 
         pred_depths.append(pred_depth)
         gt_depths.append(depth_gt)
-        disps.append(disp)
     gt_depths = np.concatenate(gt_depths, axis=0)
     gt_depths = gt_depths.squeeze(axis=1)
 
@@ -199,25 +198,36 @@ def evaluate(opts):
 
 
 
-    disps = np.concatenate(disps,axis=0)
-    disps = disps.squeeze(axis=1)
 
-    preds_resized=[]
-    for item in pred_depths:
-        pred_resized = cv2.resize(item, (full_width,full_height))
-        preds_resized.append(np.expand_dims(pred_resized,axis=0))
-    preds_resized = np.concatenate(preds_resized,axis=0)
+    # preds_resized=[]
+    # for item in pred_depths:
+    #     pred_resized = cv2.resize(item, (full_width,full_height))
+    #     preds_resized.append(np.expand_dims(pred_resized,axis=0))
+    # preds_resized = np.concatenate(preds_resized,axis=0)
 
 
-    radomed = gt_depths
 
     metrics = []
     ratios=[]
-    cnt=0
-    for gt,pred in zip(gt_depths,preds_resized):
+    for gt,pred in zip(gt_depths,pred_depths):
+        gt_height, gt_width = gt.shape[:2]
+        pred = cv2.resize(pred, (gt_width,gt_height))
 
-        gt[gt < MIN_DEPTH] = MIN_DEPTH
-        gt[gt > MAX_DEPTH] = MAX_DEPTH
+
+        if opts['dataset']['type'] == "kitti":  # ???,可能是以前很老的
+            mask = np.logical_and(gt > MIN_DEPTH, gt < MAX_DEPTH)
+            crop = np.array([0.40810811 * gt_height, 0.99189189 * gt_height, 0.03594771 * gt_width, 0.96405229 * gt_width]).astype(np.int32)
+            crop_mask = np.zeros(mask.shape)
+            crop_mask[crop[0]:crop[1], crop[2]:crop[3]] = 1
+            mask = np.logical_and(mask, crop_mask)
+        else:
+            mask = gt > 0
+
+        pred = pred[mask]  # 并reshape成1d
+        gt = gt[mask]
+
+        # gt[gt < MIN_DEPTH] = MIN_DEPTH
+        # gt[gt > MAX_DEPTH] = MAX_DEPTH
 
         ratio = np.median(gt) / np.median(pred)  # 中位数， 在eval的时候， 将pred值线性变化，尽量能使与gt接近即可
         ratios.append(ratio)
@@ -229,10 +239,9 @@ def evaluate(opts):
 
         metric = compute_errors(pred, gt)
         metrics.append(metric)
-        cnt+=1
 
     metrics = np.array(metrics)
-    print( np.median(metrics, axis=0))
+    print( np.mean(metrics, axis=0))
 
     ratios = np.array(ratios)
     med = np.median(ratios)
@@ -252,5 +261,7 @@ def evaluate(opts):
 if __name__ == "__main__":
 
     opts = YamlHandler('/home/roit/aws/aprojects/DeepSfMLearner/opts/kitti_eval.yaml').read_yaml()
+    # opts = YamlHandler('/home/roit/aws/aprojects/DeepSfMLearner/opts/mc_eval.yaml').read_yaml()
+
 
     evaluate(opts)

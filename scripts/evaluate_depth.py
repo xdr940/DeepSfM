@@ -58,7 +58,7 @@ def batch_post_process_disparity(l_disp, r_disp):
     return r_mask * l_disp + l_mask * r_disp + (1.0 - l_mask - r_mask) * m_disp
 
 @torch.no_grad()
-def evaluate(opt):
+def evaluate(opts):
     """Evaluates a pretrained model using a specified test set
     """
     MIN_DEPTH = opts['min_depth']
@@ -70,15 +70,17 @@ def evaluate(opt):
     feed_width = opts['feed_width']
     full_width = opts['dataset']['full_width']
     full_height = opts['dataset']['full_height']
+    batch_size = opts['dataset']['batch_size']
     #这里的度量信息是强行将gt里的值都压缩到和scanner一样的量程， 这样会让值尽量接近度量值
     #但是对于
 
-    if not opt.eval_mono or opt.eval_stereo:print("Please choose mono or stereo evaluation by setting either --eval_mono or --eval_stereo")
+    # if not opt.eval_mono or opt.eval_stereo:print("Please choose mono or stereo evaluation by setting either --eval_mono or --eval_stereo")
 
-    test_dir = Path(opt.test_dir)
+    test_dir = Path(opts['dataset']['split']['path'])
+    test_file = opts['dataset']['split']['test_file']
 
     #1. load gt
-    print('\n-> load gt:{}\n'.format(opt.test_dir))
+    print('\n-> load gt:{}\n'.format(test_dir))
     gt_path = test_dir / "gt_depths.npz"
     gt_depths = np.load(gt_path,allow_pickle=True)
     gt_depths = gt_depths["data"]
@@ -86,22 +88,22 @@ def evaluate(opt):
 
     #2. load img data and predict, output is pred_disps(shape is [nums,1,w,h])
 
-    depth_eval_path = Path(opt.depth_eval_path)
-
-    if not depth_eval_path.exists():print("Cannot find a folder at {}".format(depth_eval_path))
-
-
-    print("-> Loading weights from {}".format(depth_eval_path))
+    # depth_eval_path = Path(opt.depth_eval_path)
+    #
+    # if not depth_eval_path.exists():print("Cannot find a folder at {}".format(depth_eval_path))
+    #
+    #
+    # print("-> Loading weights from {}".format(depth_eval_path))
 
 
     #model loading
-    filenames = readlines(test_dir/ opt.test_files)
-    encoder_path = depth_eval_path/"encoder.pth"
-    decoder_path = depth_eval_path/ "depth.pth"
+    filenames = readlines(test_dir/ test_file)
+    encoder_path = Path(opts['model']['load_paths']['encoder'])
+    decoder_path = Path(opts['model']['load_paths']['depth'])
 
     encoder_dict = torch.load(encoder_path)
 
-    encoder = networks.ResnetEncoder(opt.num_layers, False)
+    encoder = networks.ResnetEncoder(18, False)
     depth_decoder = networks.DepthDecoder(encoder.num_ch_enc)
 
     model_dict = encoder.state_dict()
@@ -114,20 +116,23 @@ def evaluate(opt):
     depth_decoder.eval()
 
     # dataloader
-    dataset = datasets.KITTIRAWDataset(opt.data_path,
+    dataset = datasets.KITTIRAWDataset(data_path,
                                        filenames,
-                                       encoder_dict['height'],
-                                       encoder_dict['width'],
-                                       [0], 4, is_train=False)
+                                       feed_height,
+                                       feed_width,
+                                       [0],
+                                       4,
+                                       is_train=False)
     dataloader = DataLoader(dataset,
-                            batch_size=opt.eval_batch_size,
+                            batch_size=batch_size,
                             shuffle=False,
-                            num_workers=opt.num_workers,
+                            num_workers=num_workers,
                             pin_memory=True,
                             drop_last=False)
 
 
     pred_disps = []
+    pred_depths=[]
 
     print("\n-> Computing predictions with size {}x{}\n".format(
         encoder_dict['width'], encoder_dict['height']))
@@ -136,120 +141,108 @@ def evaluate(opt):
     for data in tqdm(dataloader):
         input_color = data[("color", 0, 0)].cuda()
 
-        if opt.post_process:
-            # Post-processed results require each image to have two forward passes
-            input_color = torch.cat((input_color, torch.flip(input_color, [3])), 0)
+        # if opt.post_process:
+        #     # Post-processed results require each image to have two forward passes
+        #     input_color = torch.cat((input_color, torch.flip(input_color, [3])), 0)
         #eval 0
         output = depth_decoder(encoder(input_color))
         #eval 1
-        pred_disp, pred_depth_tmp = disp_to_depth(output[("disp", 0)], opt.min_depth, opt.max_depth)
-        pred_disp = pred_disp.cpu()[:, 0].numpy()
+        pred_disp, pred_depth = disp_to_depth(output[("disp", 0)], MIN_DEPTH, MAX_DEPTH)
+        pred_depth = pred_depth.cpu()[:, 0].numpy()
         #pred_depth = pred_depth.cpu()[:,0].numpy()
-        if opt.post_process:
-            N = pred_disp.shape[0] // 2
-            pred_disp = batch_post_process_disparity(pred_disp[:N], pred_disp[N:, :, ::-1])
+        # if opt.post_process:
+        #     N = pred_disp.shape[0] // 2
+        #     pred_disp = batch_post_process_disparity(pred_disp[:N], pred_disp[N:, :, ::-1])
 
-        pred_disps.append(pred_disp)
+        pred_depths.append(pred_depth)
     #endfor
-    pred_disps = np.concatenate(pred_disps)
+    pred_depths = np.concatenate(pred_depths)
 
 
 
-    if opt.save_pred_disps:
-        output_path = depth_eval_path/ "disps_{}_split.npy".format(opt.test_dir)
-        print("-> Saving predicted disparities to ", output_path)
-        np.save(output_path, pred_disps)
 
-    if opt.no_eval:
-        print("-> Evaluation disabled. Done.")
-        quit()
-
-    elif test_dir.stem == 'benchmark':
-        save_dir = depth_eval_path/ "benchmark_predictions"
-        print("-> Saving out benchmark predictions to {}".format(save_dir))
-        if not os.path.exists(save_dir):
-            os.makedirs(save_dir)
-
-        for idx in tqdm(range(len(pred_disps))):
-            disp_resized = cv2.resize(pred_disps[idx], (1216, 352))
-            depth = STEREO_SCALE_FACTOR / disp_resized
-            depth = np.clip(depth, 0, 80)
-            depth = np.uint16(depth * 256)
-            save_path = os.path.join(save_dir, "{:010d}.png".format(idx))
-            cv2.imwrite(save_path, depth)
-
-        print("-> No ground truth is available for the KITTI benchmark, so not evaluating. Done.")
-        quit()
-
-
-
-    #3. evaluation
-    print("-> Evaluating")
-
-    if opt.eval_stereo:
-        print("   Stereo evaluation - "
-              "disabling median scaling, scaling by {}".format(STEREO_SCALE_FACTOR))
-        opt.median_scaling = False
-        opt.pred_depth_scale_factor = STEREO_SCALE_FACTOR
-    else:
-        print("   Mono evaluation - using median scaling")
+    # if opt.save_pred_disps:
+    #     output_path = depth_eval_path/ "disps_{}_split.npy".format(opt.test_dir)
+    #     print("-> Saving predicted disparities to ", output_path)
+    #     np.save(output_path, pred_disps)
+    #
+    # if opt.no_eval:
+    #     print("-> Evaluation disabled. Done.")
+    #     quit()
+    #
+    # elif test_dir.stem == 'benchmark':
+    #     save_dir = depth_eval_path/ "benchmark_predictions"
+    #     print("-> Saving out benchmark predictions to {}".format(save_dir))
+    #     if not os.path.exists(save_dir):
+    #         os.makedirs(save_dir)
+    #
+    #     for idx in tqdm(range(len(pred_disps))):
+    #         disp_resized = cv2.resize(pred_disps[idx], (1216, 352))
+    #         depth = STEREO_SCALE_FACTOR / disp_resized
+    #         depth = np.clip(depth, 0, 80)
+    #         depth = np.uint16(depth * 256)
+    #         save_path = os.path.join(save_dir, "{:010d}.png".format(idx))
+    #         cv2.imwrite(save_path, depth)
+    #
+    #     print("-> No ground truth is available for the KITTI benchmark, so not evaluating. Done.")
+    #     quit()
+    #
+    #
+    #
+    # #3. evaluation
+    # print("-> Evaluating")
+    #
+    # if opt.eval_stereo:
+    #     print("   Stereo evaluation - "
+    #           "disabling median scaling, scaling by {}".format(STEREO_SCALE_FACTOR))
+    #     opt.median_scaling = False
+    #     opt.pred_depth_scale_factor = STEREO_SCALE_FACTOR
+    # else:
+    #     print("   Mono evaluation - using median scaling")
 
     metrics = []
     ratios = []
-    nums_evaluate = pred_disps.shape[0]
 
-    for i in tqdm(range(nums_evaluate)):
-
-        gt_depth = gt_depths[i]
-        gt_height, gt_width = gt_depth.shape[:2]
-
-        pred_disp = pred_disps[i]
-
-        #eval2
-        pred_disp = cv2.resize(pred_disp, (gt_width, gt_height))#1271x341 t0 128x640
-        pred_depth = 1 / pred_disp# 也可以根据上面直接得到
-
+    for gt, pred in zip(gt_depths, pred_depths):
+        gt_height, gt_width = gt.shape[:2]
+        pred =  cv2.resize(pred, (gt_width, gt_height))
         #crop
-        if test_dir.stem == "eigen" or test_dir.stem == 'custom':#???,可能是以前很老的
-            mask = np.logical_and(gt_depth > MIN_DEPTH, gt_depth < MAX_DEPTH)
-
+        # if test_dir.stem == "eigen" or test_dir.stem == 'custom':#???,可能是以前很老的
+        if opts['dataset']['type'] == "kitti":  # ???,可能是以前很老的
+            mask = np.logical_and(gt > MIN_DEPTH, gt < MAX_DEPTH)
             crop = np.array([0.40810811 * gt_height, 0.99189189 * gt_height,0.03594771 * gt_width,  0.96405229 * gt_width]).astype(np.int32)
             crop_mask = np.zeros(mask.shape)
             crop_mask[crop[0]:crop[1], crop[2]:crop[3]] = 1
             mask = np.logical_and(mask, crop_mask)
-
         else:
-            mask = gt_depth > 0
-        #eval3
-        pred_depth = pred_depth[mask]#并reshape成1d
-        gt_depth = gt_depth[mask]
+            mask = gt > 0
 
-        pred_depth *= opt.pred_depth_scale_factor
+        pred = pred[mask]#并reshape成1d
+        gt = gt[mask]
 
-        #median scaling
-        if opt.median_scaling:
-            ratio = np.median(gt_depth) / np.median(pred_depth)#中位数， 在eval的时候， 将pred值线性变化，尽量能使与gt接近即可
-            ratios.append(ratio)
-            pred_depth *= ratio
+        ratio = np.median(gt) / np.median(pred)#中位数， 在eval的时候， 将pred值线性变化，尽量能使与gt接近即可
+        ratios.append(ratio)
+        pred *= ratio
 
-        pred_depth[pred_depth < MIN_DEPTH] = MIN_DEPTH#所有历史数据中最小的depth, 更新,
-        pred_depth[pred_depth > MAX_DEPTH] = MAX_DEPTH#...
-        metric = compute_errors(gt_depth, pred_depth)
+        pred[pred < MIN_DEPTH] = MIN_DEPTH#所有历史数据中最小的depth, 更新,
+        pred[pred > MAX_DEPTH] = MAX_DEPTH#...
+        metric = compute_errors(gt, pred)
         metrics.append(metric)
     metrics = np.array(metrics)
 
 
-    #4. precess results, latex style output
-    if opt.median_scaling:
-        ratios = np.array(ratios)
-        med = np.median(ratios)
-        print("\n Scaling ratios | med: {:0.3f} | std: {:0.3f}\n".format(med, np.std(ratios / med)))
 
-    mean_metrics = metrics.mean(0)
+    print( np.mean(metrics, axis=0))
 
-    print("\n  " + ("{:>8} | " * 7).format("abs_rel", "sq_rel", "rmse", "rmse_log", "a1", "a2", "a3"))
-    print(("&{: 8.3f}  " * 7).format(*mean_metrics.tolist()) + "\\\\")
-    print("\n-> Done!")
+
+    ratios = np.array(ratios)
+    med = np.median(ratios)
+    print("\n Scaling ratios | med: {:0.3f} | std: {:0.3f}\n".format(med, np.std(ratios / med)))
+    #
+    # mean_metrics = metrics.mean(0)
+    # print("\n  " + ("{:>8} | " * 7).format("abs_rel", "sq_rel", "rmse", "rmse_log", "a1", "a2", "a3"))
+    # print(("&{: 8.3f}  " * 7).format(*mean_metrics.tolist()) + "\\\\")
+    # print("\n-> Done!")
 
 
 

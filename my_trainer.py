@@ -19,7 +19,7 @@ from kitti_utils import *
 from networks.layers import *
 
 from datasets import KITTIRAWDataset
-from datasets import KITTIOdomDataset
+# from datasets import KITTIOdomDataset
 from datasets import MCDataset,VSDataset
 from datasets import CustomMonoDataset
 import networks
@@ -181,7 +181,7 @@ class Trainer:
 
             # datasets setting
             datasets_dict = {"kitti": KITTIRAWDataset,
-                             "kitti_odom": KITTIOdomDataset,
+                             #"kitti_odom": KITTIOdomDataset,
                              "mc": MCDataset,
                              "custom_mono": CustomMonoDataset,
                              "visdrone": VSDataset}

@@ -1,8 +1,10 @@
 model:
   mode: 0 #[encoder,depth,posecnn]
   load_paths:
-    encoder: '/home/roit/models/DeepSfM/mc/02191916/models/weights_29/encoder.pth'
-    depth: '/home/roit/models/DeepSfM/mc/02191916/models/weights_29/depth.pth'
+#    encoder: '/home/roit/models/DeepSfM/mc/02191916/models/weights_29/encoder.pth'
+#    depth: '/home/roit/models/DeepSfM/mc/02191916/models/weights_29/depth.pth'
+    encoder: '/home/roit/models/monodepth2_official/mono_640x192/encoder.pth'
+    depth: '/home/roit/models/monodepth2_official/mono_640x192/depth.pth'
     #pose: null
     posecnn: null
   device: 'cuda'
@@ -18,13 +20,13 @@ dataset:
     path: '/home/roit/datasets/splits/eigen_std'
     train_file: 'train.txt'
     val_file: 'val.txt'
-    test_file: 'test_files.txt'
+    test_file: 'test_lite.txt'
   num_workers: 12
   batch_size: 16
   to_height: 192 #same with feed height
   to_width: 640
-  full_width: 1261
-  full_height: 352
+  full_width: 1242
+  full_height: 375
 
 feed_width: 640  #"'width' must be a multiple of 32"
 feed_height: 192 #"'height' must be a multiple of 32"
@@ -40,5 +42,5 @@ yaml_file: /home/roit/aws/aprojects/DeepSfMLearner/opts/mc.yaml
 log_dir: '/home/roit/models/DeepSfM/mc'
 tb_log_frequency: 12
 weights_save_frequency: 5
-min_depth: 0.1
+min_depth: 0.001
 max_depth: 80.0

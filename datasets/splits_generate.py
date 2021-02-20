@@ -14,7 +14,11 @@ def vsd():
     pass
 
 def kitti(txt):
-    #eigen
+    '''
+    change lines from Gordard to xdr
+    :param txt:
+    :return:
+    '''
     lines =readlines(txt)
     ret_lines=[]
     for line in lines:
@@ -33,4 +37,4 @@ def kitti(txt):
 
 if __name__ == '__main__':
     #vsd()
-    kitti(txt = '/home/roit/datasets/splits/eigen_zhou/test_files.txt')
+    kitti(txt = '/home/roit/datasets/splits/eigen/test_files.txt')
