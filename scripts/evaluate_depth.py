@@ -1,3 +1,7 @@
+'''
+only for kitti. coupled with export_gt_depth.py
+'''
+
 from __future__ import absolute_import, division, print_function
 
 import os
@@ -15,6 +19,7 @@ import networks
 from tqdm import  tqdm
 from path import Path
 from utils.yaml_wrapper import YamlHandler
+from utils.official import compute_errors
 
 cv2.setNumThreads(0)  # This speeds up evaluation 5x on our unix systems (OpenCV 3.3.1)
 
@@ -26,25 +31,26 @@ cv2.setNumThreads(0)  # This speeds up evaluation 5x on our unix systems (OpenCV
 STEREO_SCALE_FACTOR = 5.4
 
 
-def compute_errors(gt, pred):
-    """Computation of error metrics between predicted and ground truth depths
-    """
-    thresh = np.maximum((gt / pred), (pred / gt))
-    a1 = (thresh < 1.25     ).mean()
-    a2 = (thresh < 1.25 ** 2).mean()
-    a3 = (thresh < 1.25 ** 3).mean()
-
-    rmse = (gt - pred) ** 2
-    rmse = np.sqrt(rmse.mean())
-
-    rmse_log = (np.log(gt) - np.log(pred)) ** 2
-    rmse_log = np.sqrt(rmse_log.mean())
-
-    abs_rel = np.mean(np.abs(gt - pred) / gt)
-
-    sq_rel = np.mean(((gt - pred) ** 2) / gt)
-
-    return abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3
+# def compute_errors(gt, pred):
+#     """Computation of error metrics between predicted and ground truth depths
+#
+#     """
+#     thresh = np.maximum((gt / pred), (pred / gt))
+#     a1 = (thresh < 1.25     ).mean()
+#     a2 = (thresh < 1.25 ** 2).mean()
+#     a3 = (thresh < 1.25 ** 3).mean()
+#
+#     rmse = (gt - pred) ** 2
+#     rmse = np.sqrt(rmse.mean())
+#
+#     rmse_log = (np.log(gt) - np.log(pred)) ** 2
+#     rmse_log = np.sqrt(rmse_log.mean())
+#
+#     abs_rel = np.mean(np.abs(gt - pred) / gt)
+#
+#     sq_rel = np.mean(((gt - pred) ** 2) / gt)
+#
+#     return abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3
 
 
 def batch_post_process_disparity(l_disp, r_disp):
@@ -79,7 +85,7 @@ def evaluate(opts):
     test_dir = Path(opts['dataset']['split']['path'])
     test_file = opts['dataset']['split']['test_file']
 
-    #1. load gt
+    # 1. load gt
     print('\n-> load gt:{}\n'.format(test_dir))
     gt_path = test_dir / "gt_depths.npz"
     gt_depths = np.load(gt_path,allow_pickle=True)
@@ -133,6 +139,7 @@ def evaluate(opts):
 
     pred_disps = []
     pred_depths=[]
+    # gt_depths=[]
 
     print("\n-> Computing predictions with size {}x{}\n".format(
         encoder_dict['width'], encoder_dict['height']))
@@ -146,6 +153,7 @@ def evaluate(opts):
         #     input_color = torch.cat((input_color, torch.flip(input_color, [3])), 0)
         #eval 0
         output = depth_decoder(encoder(input_color))
+
         #eval 1
         pred_disp, pred_depth = disp_to_depth(output[("disp", 0)], MIN_DEPTH, MAX_DEPTH)
         pred_depth = pred_depth.cpu()[:, 0].numpy()
@@ -154,51 +162,17 @@ def evaluate(opts):
         #     N = pred_disp.shape[0] // 2
         #     pred_disp = batch_post_process_disparity(pred_disp[:N], pred_disp[N:, :, ::-1])
 
+        # depth_gt = data['depth_gt']
+        # depth_gt = depth_gt.cpu().numpy()
+        # gt_depths.append(depth_gt)
         pred_depths.append(pred_depth)
     #endfor
     pred_depths = np.concatenate(pred_depths)
+    # gt_depths = np.concatenate(gt_depths)
+    # gt_depths = gt_depths.squeeze(axis=1)
 
 
 
-
-    # if opt.save_pred_disps:
-    #     output_path = depth_eval_path/ "disps_{}_split.npy".format(opt.test_dir)
-    #     print("-> Saving predicted disparities to ", output_path)
-    #     np.save(output_path, pred_disps)
-    #
-    # if opt.no_eval:
-    #     print("-> Evaluation disabled. Done.")
-    #     quit()
-    #
-    # elif test_dir.stem == 'benchmark':
-    #     save_dir = depth_eval_path/ "benchmark_predictions"
-    #     print("-> Saving out benchmark predictions to {}".format(save_dir))
-    #     if not os.path.exists(save_dir):
-    #         os.makedirs(save_dir)
-    #
-    #     for idx in tqdm(range(len(pred_disps))):
-    #         disp_resized = cv2.resize(pred_disps[idx], (1216, 352))
-    #         depth = STEREO_SCALE_FACTOR / disp_resized
-    #         depth = np.clip(depth, 0, 80)
-    #         depth = np.uint16(depth * 256)
-    #         save_path = os.path.join(save_dir, "{:010d}.png".format(idx))
-    #         cv2.imwrite(save_path, depth)
-    #
-    #     print("-> No ground truth is available for the KITTI benchmark, so not evaluating. Done.")
-    #     quit()
-    #
-    #
-    #
-    # #3. evaluation
-    # print("-> Evaluating")
-    #
-    # if opt.eval_stereo:
-    #     print("   Stereo evaluation - "
-    #           "disabling median scaling, scaling by {}".format(STEREO_SCALE_FACTOR))
-    #     opt.median_scaling = False
-    #     opt.pred_depth_scale_factor = STEREO_SCALE_FACTOR
-    # else:
-    #     print("   Mono evaluation - using median scaling")
 
     metrics = []
     ratios = []
@@ -228,13 +202,9 @@ def evaluate(opts):
         pred[pred > MAX_DEPTH] = MAX_DEPTH#...
         metric = compute_errors(gt, pred)
         metrics.append(metric)
+
     metrics = np.array(metrics)
-
-
-
     print( np.mean(metrics, axis=0))
-
-
     ratios = np.array(ratios)
     med = np.median(ratios)
     print("\n Scaling ratios | med: {:0.3f} | std: {:0.3f}\n".format(med, np.std(ratios / med)))

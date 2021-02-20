@@ -17,7 +17,7 @@ import networks
 from tqdm import  tqdm
 from path import Path
 from utils.yaml_wrapper import YamlHandler
-
+from utils.official import compute_errors
 import matplotlib.pyplot as plt
 
 cv2.setNumThreads(0)  # This speeds up evaluation 5x on our unix systems (OpenCV 3.3.1)
@@ -28,30 +28,27 @@ cv2.setNumThreads(0)  # This speeds up evaluation 5x on our unix systems (OpenCV
 # baseline of 0.1 units. The KITTI rig has a baseline of 54cm. Therefore,
 # to convert our stereo predictions to real-world scale we multiply our depths by 5.4.
 
-
-def compute_errors(gt, pred):
-    """Computation of error metrics between predicted and ground truth depths
-    input HxW,HxW
-    """
-    #pred+=1e-4
-    #gt+=1e-4
-    thresh = np.maximum((gt / pred), (pred / gt))
-    a1 = (thresh < 1.25     ).mean()
-    a2 = (thresh < 1.25 ** 2).mean()
-    a3 = (thresh < 1.25 ** 3).mean()
-
-    rmse = (gt - pred) ** 2
-    rmse = np.sqrt(rmse.mean())
-
-    rmse_log = (np.log(gt) - np.log(pred)) ** 2
-    rmse_log = np.sqrt(rmse_log.mean())
-
-    abs_rel = np.mean(np.abs(gt - pred) / gt)
-
-
-    sq_rel = np.mean(((gt - pred) ** 2) / gt)
-
-    return abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3
+#
+# def compute_errors(gt, pred):
+#     """Computation of error metrics between predicted and ground truth depths
+#     input HxW,HxW
+#     """
+#     thresh = np.maximum((gt / pred), (pred / gt))
+#     a1 = (thresh < 1.25     ).mean()
+#     a2 = (thresh < 1.25 ** 2).mean()
+#     a3 = (thresh < 1.25 ** 3).mean()
+#
+#     rmse = (gt - pred) ** 2
+#     rmse = np.sqrt(rmse.mean())
+#
+#     rmse_log = (np.log(gt) - np.log(pred)) ** 2
+#     rmse_log = np.sqrt(rmse_log.mean())
+#
+#     abs_rel = np.mean(np.abs(gt - pred) / gt)
+#
+#     sq_rel = np.mean(((gt - pred) ** 2) / gt)
+#
+#     return abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3
 
 
 
@@ -209,14 +206,17 @@ def evaluate(opts):
 
     metrics = []
     ratios=[]
-    for gt,pred in zip(gt_depths,pred_depths):
+
+    for gt, pred in zip(gt_depths, pred_depths):
         gt_height, gt_width = gt.shape[:2]
-        pred = cv2.resize(pred, (gt_width,gt_height))
-
-
+        pred = cv2.resize(pred, (gt_width, gt_height))
+        # crop
+        # if test_dir.stem == "eigen" or test_dir.stem == 'custom':#???,可能是以前很老的
         if opts['dataset']['type'] == "kitti":  # ???,可能是以前很老的
             mask = np.logical_and(gt > MIN_DEPTH, gt < MAX_DEPTH)
-            crop = np.array([0.40810811 * gt_height, 0.99189189 * gt_height, 0.03594771 * gt_width, 0.96405229 * gt_width]).astype(np.int32)
+            crop = np.array(
+                [0.40810811 * gt_height, 0.99189189 * gt_height, 0.03594771 * gt_width, 0.96405229 * gt_width]).astype(
+                np.int32)
             crop_mask = np.zeros(mask.shape)
             crop_mask[crop[0]:crop[1], crop[2]:crop[3]] = 1
             mask = np.logical_and(mask, crop_mask)
@@ -226,28 +226,20 @@ def evaluate(opts):
         pred = pred[mask]  # 并reshape成1d
         gt = gt[mask]
 
-        # gt[gt < MIN_DEPTH] = MIN_DEPTH
-        # gt[gt > MAX_DEPTH] = MAX_DEPTH
-
         ratio = np.median(gt) / np.median(pred)  # 中位数， 在eval的时候， 将pred值线性变化，尽量能使与gt接近即可
         ratios.append(ratio)
         pred *= ratio
 
-        pred[pred < MIN_DEPTH] = MIN_DEPTH
-        pred[pred > MAX_DEPTH] = MAX_DEPTH
-
-
-        metric = compute_errors(pred, gt)
+        pred[pred < MIN_DEPTH] = MIN_DEPTH  # 所有历史数据中最小的depth, 更新,
+        pred[pred > MAX_DEPTH] = MAX_DEPTH  # ...
+        metric = compute_errors(gt, pred)
         metrics.append(metric)
 
     metrics = np.array(metrics)
-    print( np.mean(metrics, axis=0))
-
+    print(np.mean(metrics, axis=0))
     ratios = np.array(ratios)
     med = np.median(ratios)
     print("\n Scaling ratios | med: {:0.3f} | std: {:0.3f}\n".format(med, np.std(ratios / med)))
-
-    pass
 
 
 

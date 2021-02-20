@@ -20,7 +20,7 @@ dataset:
     path: '/home/roit/datasets/splits/eigen_std'
     train_file: 'train.txt'
     val_file: 'val.txt'
-    test_file: 'test_lite.txt'
+    test_file: 'test.txt'
   num_workers: 12
   batch_size: 16
   to_height: 192 #same with feed height
