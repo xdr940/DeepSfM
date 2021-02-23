@@ -7,8 +7,8 @@ import torch
 from torch.utils.data import DataLoader
 from datasets.mc_dataset import relpath_split
 
-from networks.new_encoders import getEncoder
-from networks.depth_decoder import getDepthDecoder
+from networks.encoders import getEncoder
+from networks.decoders import getDepthDecoder
 
 from networks.layers import disp2depth,disp_to_depth
 from utils.official import readlines
@@ -74,12 +74,12 @@ def dict_update(dict):
     return dict
 
 
-def model_init(model_path):
+def model_init(model_path,mode):
     encoder_path = model_path['encoder']
     decoder_path = model_path['depth']
 
 
-    encoder = getEncoder(model_mode=0)
+    encoder = getEncoder(model_mode=mode)
     depth_decoder = getDepthDecoder(model_mode=1,mode='test')
 
     encoder_dict = torch.load(encoder_path)
@@ -108,6 +108,29 @@ def dataset_init():
     # dataloader
 
     pass
+def input_frames(data,mode):
+    if mode=="3din":
+        input = torch.cat([data["color", -1, 0].unsqueeze(dim=2),
+                             data["color", 0, 0].unsqueeze(dim=2),
+                             data["color", 1, 0].unsqueeze(dim=2)],
+                            dim=2)
+
+    elif mode =='3in':
+        input = torch.cat([data["color", -1, 0],
+                             data["color", 0, 0],
+                             data["color", 1, 0]],
+                            dim=1)
+
+    elif mode=='1in':
+        input = data["color", 0, 0]
+
+
+
+
+    return input.cuda()
+
+def post_press(out_put):
+    pass
 
 
 @torch.no_grad()
@@ -125,6 +148,9 @@ def evaluate(opts):
     feed_width = opts['feed_width']
     full_width = opts['dataset']['full_width']
     full_height = opts['dataset']['full_height']
+    metric_mode = opts['metric_mode']
+
+    framework_mode = opts['model']['mode']
 
 
     #这里的度量信息是强行将gt里的值都压缩到和scanner一样的量程， 这样会让值尽量接近度量值
@@ -134,18 +160,26 @@ def evaluate(opts):
     data_path = Path(opts['dataset']['path'])
     lines = Path(opts['dataset']['split']['path'])/opts['dataset']['split']['test_file']
     model_path = opts['model']['load_paths']
-    encoder,decoder = model_init(model_path)
+    model_mode = opts['model']['mode']
+    encoder,decoder = model_init(model_path,mode=model_mode)
     file_names = readlines(lines)
 
     print('-> dataset_path:{}'.format(data_path))
-    print('-> model_path:{}'.format(opts['model']['load_paths']))
+    print('-> model_path')
+    for k,v in opts['model']['load_paths'].items():
+        print('\t'+str(v))
+
+    print("-> metrics mode: {}".format(metric_mode))
+    print("-> data split:{}".format(lines))
 
     if opts['dataset']['type']=='mc':
-        dataset = datasets.MCDataset(data_path,
-                                       file_names,
-                                       feed_height,
-                                       feed_width,
-                                       [0], 4, is_train=False)
+        dataset = datasets.MCDataset(data_path=data_path,
+                                       filenames=file_names,
+                                       height=feed_height,
+                                       width=feed_width,
+                                       frame_sides=[-1,0,1],
+                                     num_scales=1,
+                                     mode="test")
     elif opts['dataset']['type']=='kitti':
 
         dataset = datasets.KITTIRAWDataset (  # KITTIRAWData
@@ -155,7 +189,7 @@ def evaluate(opts):
             feed_width,
             [0],
             4,
-            is_train=False
+            mode="test"
         )
 
     dataloader = DataLoader(dataset,
@@ -168,7 +202,12 @@ def evaluate(opts):
     gt_depths = []
     disps = []
     for data in tqdm(dataloader):
-        input_color = data[("color", 0, 0)].cuda()
+
+
+        input_color = input_frames(data,mode=framework_mode)
+
+
+
         features = encoder(input_color)
         disp = decoder(*features)
 
@@ -232,11 +271,17 @@ def evaluate(opts):
 
         pred[pred < MIN_DEPTH] = MIN_DEPTH  # 所有历史数据中最小的depth, 更新,
         pred[pred > MAX_DEPTH] = MAX_DEPTH  # ...
-        metric = compute_errors(gt, pred)
+        metric = compute_errors(gt, pred,mode=metric_mode)
         metrics.append(metric)
 
     metrics = np.array(metrics)
-    print(np.mean(metrics, axis=0))
+    mean_metrics = np.mean(metrics, axis=0)
+
+    # print("\n  " + ("{:>8} | " * 7).format("abs_rel", "sq_rel", "rmse", "rmse_log", "a1", "a2", "a3"))
+    print(("&{: 8.3f}  " * 7).format(*mean_metrics.tolist()) + "\\\\")
+
+
+
     ratios = np.array(ratios)
     med = np.median(ratios)
     print("\n Scaling ratios | med: {:0.3f} | std: {:0.3f}\n".format(med, np.std(ratios / med)))
@@ -252,8 +297,8 @@ def evaluate(opts):
 
 if __name__ == "__main__":
 
-    opts = YamlHandler('/home/roit/aws/aprojects/DeepSfMLearner/opts/kitti_eval.yaml').read_yaml()
-    # opts = YamlHandler('/home/roit/aws/aprojects/DeepSfMLearner/opts/mc_eval.yaml').read_yaml()
+    # opts = YamlHandler('/home/roit/aws/aprojects/DeepSfMLearner/opts/kitti_eval.yaml').read_yaml()
+    opts = YamlHandler('/home/roit/aws/aprojects/DeepSfMLearner/opts/mc_eval.yaml').read_yaml()
 
 
     evaluate(opts)

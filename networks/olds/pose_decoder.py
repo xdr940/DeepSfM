@@ -112,11 +112,5 @@ class PoseDecoder2(nn.Module):
 
 
 
-def getPoseDecoder(mode):
-    if mode=="fin-2out":
-        return PoseDecoder2()
-    else:
-        pass
-
-if __name__ == '__main__':
-    pass
+def getPoseDecoder():
+    return PoseDecoder2()

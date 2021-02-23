@@ -4,16 +4,13 @@ only for kitti. coupled with export_gt_depth.py
 
 from __future__ import absolute_import, division, print_function
 
-import os
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt#debug
 import torch
 from torch.utils.data import DataLoader
 
 from networks.layers import disp_to_depth
 from utils.official import readlines
-from opts.evaluate_depth_opts import evaluate_depth_opts
 import datasets
 import networks
 from tqdm import  tqdm
@@ -204,7 +201,11 @@ def evaluate(opts):
         metrics.append(metric)
 
     metrics = np.array(metrics)
-    print( np.mean(metrics, axis=0))
+    mean_metrics = np.mean(metrics, axis=0)
+
+    print("\n  " + ("{:>8} | " * 7).format("abs_rel", "sq_rel", "rmse", "rmse_log", "a1", "a2", "a3"))
+    print(("&{: 8.3f}  " * 7).format(*mean_metrics.tolist()) + "\\\\")
+
     ratios = np.array(ratios)
     med = np.median(ratios)
     print("\n Scaling ratios | med: {:0.3f} | std: {:0.3f}\n".format(med, np.std(ratios / med)))

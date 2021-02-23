@@ -36,7 +36,7 @@ class MonoDataset(data.Dataset):
                  width,
                  frame_sides,
                  num_scales,
-                 is_train=False,
+                 mode="train",
                  img_ext='.png'):
         super(MonoDataset, self).__init__()
 
@@ -49,7 +49,7 @@ class MonoDataset(data.Dataset):
 
         self.frame_sides = frame_sides
 
-        self.is_train = is_train#unsuper train or evaluation
+        self.mode = mode#unsuper train or evaluation
         self.img_ext = img_ext
 
         self.loader = pil_loader
@@ -98,13 +98,12 @@ class MonoDataset(data.Dataset):
                 type, side, _ = k
                 for scale in range(self.num_scales):
                     inputs[(type, side, scale)] = self.resizor[scale](inputs[(type, side, scale - 1)])
-
         for k in list(inputs):
             f = inputs[k]
             if "color" in k:
                 type, side, scale= k
                 inputs[(type, side, scale)] = self.to_tensor(f)
-                if scale<=0:
+                if scale<=0 and color_aug:
                     inputs[(type + "_aug", side, scale)] = self.to_tensor(color_aug(f))
 
     def __len__(self):
@@ -136,9 +135,9 @@ class MonoDataset(data.Dataset):
         """
         inputs = {}
 
-        do_color_aug = self.is_train and random.random() > 0.5
-        do_flip = self.is_train and random.random() > 0.5
-        do_rotation = self.is_train and random.random()>0.5
+        do_color_aug = self.mode=="train" and random.random() > 0.5
+        do_flip = self.mode=="train" and random.random() > 0.5
+        do_rotation = self.mode=="train" and random.random()>0.5
 
         split_line = self.filenames[index]
 
@@ -149,37 +148,45 @@ class MonoDataset(data.Dataset):
                 inputs[("color", side, -1)] = self.get_color(split_line, side,  do_flip)  # inputs得到scale == -1的前 中后三帧
             except:
                 import os
-                os.system('clear')
-                print(split_line)
+                # os.system('clear')
+                # print(split_line)
                 exit(-1)
 
         # adjusting intrinsics to match each scale in the pyramid
-        for scale in range(self.num_scales):
-            K = self.K.copy()
 
-            K[0, :] *= self.width // (2 ** scale)
-            K[1, :] *= self.height // (2 ** scale)
+        if self.mode=="train" or self.mode=="val":
+            for scale in range(self.num_scales):
+                K = self.K.copy()
 
-            inv_K = np.linalg.pinv(K)
+                K[0, :] *= self.width // (2 ** scale)
+                K[1, :] *= self.height // (2 ** scale)
 
-            inputs[("K", scale)] = torch.from_numpy(K)
-            inputs[("inv_K", scale)] = torch.from_numpy(inv_K)
+                inv_K = np.linalg.pinv(K)
+
+                inputs[("K", scale)] = torch.from_numpy(K)
+                inputs[("inv_K", scale)] = torch.from_numpy(inv_K)
+
+            color_aug=None
+            if do_color_aug:
+                color_aug = transforms.ColorJitter.get_params(#对图像进行稍微处理，aug 但是要保证深度一致
+                    self.brightness, self.contrast, self.saturation, self.hue)
 
 
-
-        if do_color_aug:
-            color_aug = transforms.ColorJitter.get_params(#对图像进行稍微处理，aug 但是要保证深度一致
-                self.brightness, self.contrast, self.saturation, self.hue)
-        else:
-            color_aug = (lambda x: x)
+            else:# self.mode=="val":
+                color_aug = (lambda x: x)
+        else: #test
+            color_aug=None
 
         self.preprocess(inputs, color_aug)#scalse,aug generate to 38
 
 
 
+
         for i in self.frame_sides:
-            del inputs[("color", i, -1)]#删除原分辨率图
-            del inputs[("color_aug", i, -1)]#删除原分辨率曾广图
+            if ("color", i, -1) in inputs.keys():
+                del inputs[("color", i, -1)]#删除原分辨率图
+            if ("color_aug", i, -1) in inputs.keys():
+                del inputs[("color_aug", i, -1)]#删除原分辨率曾广图
 
 
 

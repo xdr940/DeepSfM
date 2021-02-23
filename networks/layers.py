@@ -269,6 +269,7 @@ class SSIM(nn.Module):
 
 def compute_depth_errors(gt, pred,mode='median'):
     """Computation of error metrics between predicted and ground truth depths
+    torch using
     """
     metrics={}
 

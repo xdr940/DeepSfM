@@ -122,6 +122,7 @@ class Res3DEncoder0(models.ResNet):
 
 class Res3DEncoder1(models.ResNet):
     """Pytorch module for a resnet encoder
+        just concat, 3-in
     """
     def __init__(self, block, layers,num_input_images=3):
         super(Res3DEncoder1, self).__init__(block, layers)
@@ -175,6 +176,7 @@ class Res3DEncoder1(models.ResNet):
 
 class Res3DEncoder2(models.ResNet):
     """Pytorch module for a resnet encoder
+        applied 3d conv, 3d-in
     """
     def __init__(self, block, layers):
         super(Res3DEncoder2, self).__init__(block, layers)
@@ -230,15 +232,15 @@ class Res3DEncoder2(models.ResNet):
         return self.features
 
 def getEncoder(model_mode,test=False):
-    if model_mode==1 or model_mode==3:
+    if model_mode=="3in":
         return Res3DEncoder1(layers=[2,2,2,2],
                          block=models.resnet.BasicBlock,
                              num_input_images=3)
-    elif model_mode==2 :
+    elif model_mode=="3din" :
         return Res3DEncoder2(layers=[2, 2, 2, 2],
                              block=models.resnet.BasicBlock
                              )
-    elif model_mode==0 or model_mode ==123:
+    elif model_mode=="1in":
        return ResnetEncoder(
             num_layers=18,  # resnet18
             pretrained=False,
@@ -277,3 +279,11 @@ if __name__ == '__main__':
                                     export_params=True  # 带参数输出
                                     )
     pass
+
+
+'''
+mode0 1-in-DepthNet + 2-in-PoseNet
+
+mode1 1-in-DepthNet + 2
+
+'''

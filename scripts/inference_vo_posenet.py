@@ -11,7 +11,7 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 from utils.official import readlines
-from opts.md_vo_inferences_bian_opt import MD_vo_inferences_bian_opt
+from opts.olds.md_vo_inferences_bian_opt import MD_vo_inferences_bian_opt
 from datasets import CustomMonoDataset
 from datasets import MCDataset
 import networks

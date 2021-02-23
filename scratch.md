@@ -71,3 +71,7 @@ depth_pred = torch.clamp(depth_pred, min=min_depth, max=max_depth)#截断
 depth_gt = torch.clamp(depth_gt,min=min_depth,max = max_depth)
 
 metrics = compute_depth_errors(depth_gt, depth_pred)
+
+
+
+'conv1.weight' (140334072187760)

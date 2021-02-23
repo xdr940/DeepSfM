@@ -1,23 +1,63 @@
-import numpy as np
-
-gt_depths = np.load("/home/roit/datasets/splits/eigen_std/gt_depths.npz", allow_pickle=True)
-gt_depths = gt_depths["data"]
-gts = []
-cnt=0
-for gt in gt_depths:
-    gt = np.expand_dims(gt,axis=0)
-    gts.append(gt)
-    cnt+=1
-    if cnt>=10:
-        break
+# -*-coding:utf-8-*-
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
 
 
-gts=np.concatenate(gts,axis=0)
+# define model
+class TheModelClass(nn.Module):
+    def __init__(self):
+        super(TheModelClass, self).__init__()
+        self.conv1 = nn.Conv2d(3, 6, 5)
+        self.pool = nn.MaxPool2d(2, 2)
+        self.conv2 = nn.Conv2d(6, 16, 5)
+        self.fc1 = nn.Linear(16 * 5 * 5, 120)
+        self.fc2 = nn.Linear(120, 84)
+        self.fc3 = nn.Linear(84, 10)
+
+    def forward(self, x):
+        x = self.pool(F.relu(self.conv1(x)))
+        x = self.pool(F.relu(self.conv2(x)))
+        x = x.view(-1, 16 * 5 * 5)
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
+        return x
 
 
-mc_pred = np.load('mc_gt.npy')
+# initial model
+model = TheModelClass()
 
-of_pred = np.load('of_gt.npy')
+# initialize the optimizer
+optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
 
+# print the model's state_dict
+print("model's state_dict:")
+for param_tensor in model.state_dict():
+    print(param_tensor, '\t', model.state_dict()[param_tensor].size())
 
-print('ok')
+print("\noptimizer's state_dict")
+for var_name in optimizer.state_dict():
+    print(var_name, '\t', optimizer.state_dict()[var_name])
+
+print("\nprint particular param")
+print('\n', model.conv1.weight.size())
+print('\n', model.conv1.weight)
+
+print("------------------------------------")
+torch.save(model.state_dict(), './model_state_dict.pt')
+# model_2 = TheModelClass()
+# model_2.load_state_dict(torch.load('./model_state_dict'))
+# model.eval()
+# print('\n',model_2.conv1.weight)
+# print((model_2.conv1.weight == model.conv1.weight).size())
+## 仅仅加载某一层的参数
+conv1_weight_state = torch.load('./model_state_dict.pt')['conv1.weight']
+print(conv1_weight_state == model.conv1.weight)
+
+model_2 = TheModelClass()
+model_2.load_state_dict(torch.load('./model_state_dict.pt'))
+model_2.conv1.requires_grad = False
+print(model_2.conv1.requires_grad)
+print(model_2.conv1.bias.requires_grad)

@@ -14,12 +14,12 @@ from torch.utils.data import DataLoader
 
 from networks.layers import transformation_from_parameters
 from utils.official import readlines
-from opts.md_eval_pose_opts import MD_eval_pose_opts
+from opts.olds.md_eval_pose_opts import MD_eval_pose_opts
 from datasets import KITTIOdomDataset
 import networks
 from tqdm import tqdm
 
-from torchstat import stat
+
 # from https://github.com/tinghuiz/SfMLearner
 def dump_xyz(source_to_target_transformations):
     xyzs = []

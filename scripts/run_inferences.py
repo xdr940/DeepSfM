@@ -17,7 +17,7 @@ from torchvision import transforms
 
 import networks
 from networks.layers import disp_to_depth
-from opts.run_infer_opts import run_inference_opts
+from opts.olds.run_infer_opts import run_inference_opts
 
 
 

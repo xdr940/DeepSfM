@@ -24,7 +24,7 @@ from datasets.visdrone_dataset import VSDataset
 from datasets.mc_dataset import MCDataset
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
-from opts.run_from_txt_opts import run_from_txt_opts
+from opts.olds.run_from_txt_opts import run_from_txt_opts
 
 
 #parse_args_run_from_txt  as parse_args

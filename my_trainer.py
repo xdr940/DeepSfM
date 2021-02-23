@@ -8,7 +8,6 @@ from __future__ import absolute_import, division, print_function
 import time
 import datetime
 from path import Path
-import torch.optim as optim
 from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
 import matplotlib.pyplot as plt
@@ -24,6 +23,7 @@ from datasets import MCDataset,VSDataset
 from datasets import CustomMonoDataset
 import networks
 from utils.logger import TermLogger
+from utils.assist import model_init
 import torch
 
 
@@ -58,125 +58,7 @@ def compute_reprojection_loss(ssim, pred, target):
             return reprojection_loss  # [b,1,h,w]
 class Trainer:
     def __init__(self, options):
-        def model_init(model_opt):
-            # models
-            # details
-            device = model_opt['device']
-            models = {}  # dict
-            scales = model_opt['scales']
-            lr = model_opt['lr']
-            scheduler_step_size = model_opt['scheduler_step_size']
-            model_mode = model_opt['mode']
-            load_paths = model_opt['load_paths']
-            optimizer_path = model_opt['optimizer_path']
 
-            if model_mode == 4:
-                #encoder
-                models["encoder"] = networks.ResnetEncoder(
-                    num_layers=18,#resnet18
-                    pretrained=False,
-                    #encoder_path=encoder_path
-                )
-                # depth decoder
-                models["depth"] = networks.DepthDecoder(
-                    num_ch_enc = models["encoder"].num_ch_enc,
-                    scales=scales)
-                # pose encoder
-                models["pose_encoder"] = networks.ResnetEncoder(
-                    num_layers=18,
-                    pretrained=False,
-                    num_input_images=2,
-                #    encoder_path=init_weight_path/'pose_encoder'
-                )
-                # pose decoder
-                models["pose"] = networks.PoseDecoder(
-                    models["pose_encoder"].num_ch_enc,
-                    num_input_features=1,
-                    num_frames_to_predict_for=2)
-            elif model_mode == 0:
-                # encoder
-                models["encoder"] = networks.ResnetEncoder(
-                    num_layers=18,  # resnet18
-                    pretrained=False,
-                    # encoder_path=encoder_path
-                )
-                # depth decoder
-                models["depth"] = networks.DepthDecoder2(
-                    num_ch_enc=models["encoder"].num_ch_enc,
-                    scales=scales)
-
-                models["posecnn"] = networks.PoseNet()
-            elif model_mode ==1:
-                models["encoder"] = networks.getEncoder(model_mode=1)
-                # depth decoder
-                models["depth"] = networks.getDepthDecoder()
-                # pose decoder
-                models["pose"] =networks.getPoseDecoder()
-
-            elif model_mode ==2:
-                models["encoder"] = networks.getEncoder(model_mode=2)
-                # depth decoder
-                models["depth"] = networks.getDepthDecoder()
-                # pose decoder
-                models["pose"] = networks.getPoseDecoder()
-            elif model_mode ==3:
-                models["encoder"] = networks.getEncoder(model_mode=3)
-                # depth decoder
-                models["depth"] = networks.getDepthDecoder()
-                # pose decoder
-                models["posecnn"] = networks.PoseNet()
-
-            elif model_mode == 123:
-                #supervised model
-                models["encoder"] =  networks.getEncoder(model_mode=0)
-                models["depth"] = networks.getDepthDecoder()
-
-            for k,v in models.items():
-                models[k].to(device)
-
-            # params to train
-            parameters_to_train = []
-            for k, v in models.items():
-                parameters_to_train += list(v.parameters())
-
-            model_optimizer = optim.Adam(parameters_to_train, lr)
-
-            model_lr_scheduler = optim.lr_scheduler.StepLR(
-                model_optimizer,
-                scheduler_step_size,
-                lr
-            )  # end models arch
-
-            print('--> load models:')
-
-
-            #load models
-            for name,path in load_paths.items():
-                path = load_paths[name]
-                if name in models.keys() and path:
-                    model_dict = models[name].state_dict()
-                    pretrained_dict = torch.load(path)
-                    pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
-                    model_dict.update(pretrained_dict)
-                    models[name].load_state_dict(model_dict)
-                print("\t{}:{}".format(name,path))
-                # loading adam state
-
-
-
-
-
-            if optimizer_path:
-                optimizer_path = Path(optimizer_path)
-                optimizer_dict = torch.load(optimizer_path)
-                model_optimizer.load_state_dict(optimizer_dict)
-                print('optimizer params from {}'.format(optimizer_path))
-
-            else:
-                print('optimizer params from scratch')
-
-
-            return models,model_optimizer,model_lr_scheduler
         def dataset_init(dataset_opt):
 
             # datasets setting
@@ -217,7 +99,7 @@ class Trainer:
                 width=feed_width,
                 frame_sides=self.frame_sides,#kitti[0,-1,1],mc[-1,0,1]
                 num_scales = 4,
-                is_train=True,
+                mode="train",
                 img_ext='.png'
             )
             train_loader = DataLoader(  # train_datasets:KITTIRAWDataset
@@ -236,7 +118,7 @@ class Trainer:
                 width=feed_width,
                 frame_sides = self.frame_sides,
                 num_scales = 4,
-                is_train=False,
+                mode="val",
                 img_ext=img_ext)
 
             val_loader = DataLoader(
@@ -526,7 +408,7 @@ class Trainer:
                 outputs[("color_identity", frame_side, scale)] = inputs[("color", frame_side, source_scale)]
 
     #1. forward pass1, more like core
-    def batch_process(self, model_mode,inputs):
+    def batch_process(self, framework_mode,inputs):
         """Pass a minibatch through the network and generate images and losses
         """
 
@@ -545,171 +427,67 @@ class Trainer:
 
         outputs={}
 
+        #depth input cat
+        if framework_mode[0]=="1in":#0:1614,1:1608
+            input_d = inputs["color_aug", 0, 0]
 
-        if model_mode==4:
-            # depth
-            features = self.models["encoder"](inputs["color_aug", 0, 0])
-            features=tuple(features)
-            disp = self.models["depth"](*features)
-            outputs[("disp", 0, 0)] = disp[0]
-            outputs[("disp", 0, 1)] = disp[1]
-            outputs[("disp", 0, 2)] = disp[2]
-            outputs[("disp", 0, 3)] = disp[3]
+        elif framework_mode[0] =="3din":
+            #3d-in
+            input_d = torch.cat([inputs["color_aug", -1, 0].unsqueeze(dim=2),
+                                   inputs["color_aug", 0, 0].unsqueeze(dim=2),
+                                   inputs["color_aug", 1, 0].unsqueeze(dim=2)],
+                                  dim=2)
 
+        #depth pass
+        features = self.models["encoder"](input_d)#0:1611,1:1676
+        features = tuple(features)#0:2522, 1:5232
+        disp = self.models["depth"](*features)
+        outputs[("disp", 0, 0)] = disp[0]#0:3808
+        outputs[("disp", 0, 1)] = disp[1]
+        outputs[("disp", 0, 2)] = disp[2]
+        outputs[("disp", 0, 3)] = disp[3]
 
-            #pose
-            pose_feats = {side: inputs["color_aug", side, 0] for side in self.frame_sides}
+        #pose input cat
+        if framework_mode[1] =="3in":#
+            # input_p  = torch.cat([inputs["color_aug", -1, 0].unsqueeze(dim=2),
+            #                        inputs["color_aug", 0, 0].unsqueeze(dim=2),
+            #                        inputs["color_aug", 1, 0].unsqueeze(dim=2)],
+            #                       dim=2)
+            input_p = torch.cat([inputs["color_aug", -1, 0],
+                                 inputs["color_aug", 0, 0],
+                                 inputs["color_aug", 1, 0]],
+                                dim=1)
 
-            pose_inputs_01 = [pose_feats[-1], pose_feats[0]]
-            pose_inputs_12 = [pose_feats[0], pose_feats[1]]
-
-            frames_01 = torch.cat(pose_inputs_01, 1)
-            frames_12 = torch.cat(pose_inputs_12, 1)
-
-            features_01 = [self.models["pose_encoder"](frames_01)]  # pose_inputs list of 2 [b,3,h,w] i.e b,6,h,w
-            features_12 = [self.models["pose_encoder"](frames_12)]  # pose_inputs list of 2 [b,3,h,w] i.e b,6,h,w
-
-
-
-            # decoder
-            axisangle, translation = self.models["pose"](features_01)  # b213,b213
-            cam_T_cam = transformation_from_parameters(
-                axisangle[:, 0], translation[:, 0], invert=True
-            )  # b44
-            outputs[("cam_T_cam", 0, -1)] = cam_T_cam
-
-
-
-            axisangle, translation = self.models["pose"](features_12)  # b213,b213
-            cam_T_cam = transformation_from_parameters(
-                axisangle[:, 0], translation[:, 0], invert=False
-            )  # b44
-            outputs[("cam_T_cam", 0, 1)] = cam_T_cam
-        elif model_mode==0:
-            features = self.models["encoder"](inputs["color_aug", 0, 0])
-            features = tuple(features)
-            disp = self.models["depth"](*features)
-            outputs[("disp", 0, 0)] = disp[0]
-            outputs[("disp", 0, 1)] = disp[1]
-            outputs[("disp", 0, 2)] = disp[2]
-            outputs[("disp", 0, 3)] = disp[3]
-
-            # pose
-            pose_feats = {side: inputs["color_aug", side, 0] for side in self.frame_sides}
-
-            pose_inputs_01 = [pose_feats[-1], pose_feats[0]]
-            pose_inputs_12 = [pose_feats[0], pose_feats[1]]
-
-            frames_01 = torch.cat(pose_inputs_01, 1)
-            frames_12 = torch.cat(pose_inputs_12, 1)
-
-            pose= self.models['posecnn'](frames_01)
-            cam_T_cam = transformation_from_parameters(
-                pose[:, :3].unsqueeze(1), pose[:, 3:].unsqueeze(1), invert=True
-            )  # b44
-            outputs[("cam_T_cam", 0, -1)] = cam_T_cam
-
-            pose = self.models['posecnn'](frames_12)
-            cam_T_cam = transformation_from_parameters(
-                pose[:, :3].unsqueeze(1), pose[:, 3:].unsqueeze(1), invert=False
-            )  # b44
-            outputs[("cam_T_cam", 0, 1)] = cam_T_cam
-        elif model_mode==1:
-            trip_imgs = torch.cat([inputs["color_aug", -1, 0],
-                               inputs["color_aug", 0, 0],
-                               inputs["color_aug", 1, 0]],
-                              dim=1)
-            features = self.models["encoder"](trip_imgs)
-            features = tuple(features)
-            disp = self.models["depth"](*features)
-            outputs[("disp", 0, 0)] = disp[0]
-            outputs[("disp", 0, 1)] = disp[1]
-            outputs[("disp", 0, 2)] = disp[2]
-            outputs[("disp", 0, 3)] = disp[3]
-
-            # pose
-
+            poses = self.models['pose'](input_p)#0:3877
+            #0:4593
+        elif framework_mode[1]=="3din":
+            poses = self.models['pose'](input_d)
+        elif framework_mode =="fin-2out":
             poses= self.models['pose'](*features)
-
-            cam_T_cam = transformation_from_parameters(
-                poses[:, 0,0,:3].unsqueeze(1), poses[:, 0,0,3:].unsqueeze(1), invert=True
-            )  # b44
-            outputs[("cam_T_cam", 0, -1)] = cam_T_cam
-
-            cam_T_cam = transformation_from_parameters(
-                poses[:, 1,0,:3].unsqueeze(1), poses[:, 1,0,3:].unsqueeze(1), invert=False
-            )  # b44
-            outputs[("cam_T_cam", 0, 1)] = cam_T_cam
-
-        elif model_mode==2:
-            trip_imgs = torch.cat([inputs["color_aug", -1, 0].unsqueeze(dim=2),
-                               inputs["color_aug", 0, 0].unsqueeze(dim=2),
-                               inputs["color_aug", 1, 0].unsqueeze(dim=2)],
-                              dim=2)
-            features = self.models["encoder"](trip_imgs)
-            features = tuple(features)
-            disp = self.models["depth"](*features)
-            outputs[("disp", 0, 0)] = disp[0]
-            outputs[("disp", 0, 1)] = disp[1]
-            outputs[("disp", 0, 2)] = disp[2]
-            outputs[("disp", 0, 3)] = disp[3]
-
-            # pose
-
-            poses= self.models['pose'](*features)
-
-            cam_T_cam = transformation_from_parameters(
-                poses[:, 0,0,:3].unsqueeze(1), poses[:, 0,0,3:].unsqueeze(1), invert=True
-            )  # b44
-            outputs[("cam_T_cam", 0, -1)] = cam_T_cam
-
-            cam_T_cam = transformation_from_parameters(
-                poses[:, 1,0,:3].unsqueeze(1), poses[:, 1,0,3:].unsqueeze(1), invert=False
-            )  # b44
-            outputs[("cam_T_cam", 0, 1)] = cam_T_cam
-
-        elif model_mode == 3:
-            trip_imgs = torch.cat([inputs["color_aug", -1, 0],
-                                   inputs["color_aug", 0, 0],
-                                   inputs["color_aug", 1, 0]],
-                                  dim=1)
-            features = self.models["encoder"](trip_imgs)
-            features = tuple(features)
-            disp = self.models["depth"](*features)
-            outputs[("disp", 0, 0)] = disp[0]
-            outputs[("disp", 0, 1)] = disp[1]
-            outputs[("disp", 0, 2)] = disp[2]
-            outputs[("disp", 0, 3)] = disp[3]
-
-            # pose
-
-            pose = self.models['posecnn'](trip_imgs[:,:6,:,:])
-            cam_T_cam = transformation_from_parameters(
-                pose[:, :3].unsqueeze(1), pose[:, 3:].unsqueeze(1), invert=True
-            )  # b44
-            outputs[("cam_T_cam", 0, -1)] = cam_T_cam
-
-            pose = self.models['posecnn'](trip_imgs[:,3:,:,:])
-            cam_T_cam = transformation_from_parameters(
-                pose[:, :3].unsqueeze(1), pose[:, 3:].unsqueeze(1), invert=False
-            )  # b44
-            outputs[("cam_T_cam", 0, 1)] = cam_T_cam
-
-        elif model_mode ==123:
-            features = self.models["encoder"](inputs["color_aug", 0, 0])
-            features = tuple(features)
-            disp = self.models["depth"](*features)
-            outputs[("disp", 0, 0)] = disp[0]
-            outputs[("disp", 0, 1)] = disp[1]
-            outputs[("disp", 0, 2)] = disp[2]
-            outputs[("disp", 0, 3)] = disp[3]
+        else:
+            pass
 
 
-        #4.
-        if model_mode!=123:
-            self.generate_images_pred(inputs, outputs)#outputs get depth 0 0
-            losses = self.compute_losses(inputs, outputs)
-        elif model_mode==123:
+        #pose pass
+        cam_T_cam = transformation_from_parameters(
+            poses[:, 0,0,:3].unsqueeze(1), poses[:, 0,0,3:].unsqueeze(1), invert=True
+        )  # b44
+        outputs[("cam_T_cam", 0, -1)] = cam_T_cam
+
+        cam_T_cam = transformation_from_parameters(
+            poses[:, 1,0,:3].unsqueeze(1), poses[:, 1,0,3:].unsqueeze(1), invert=False
+        )  # b44
+        outputs[("cam_T_cam", 0, 1)] = cam_T_cam
+
+
+
+
+        #
+        if framework_mode!="spv":
+            self.generate_images_pred(inputs, outputs) #0:5629 # outputs get depth 0 0
+            losses = self.compute_losses(inputs, outputs)#0:8561
+
+        elif framework_mode=="spv":
             losses = self.compute_losses_spv(inputs, outputs)
 
 
@@ -928,7 +706,7 @@ class Trainer:
                                             time=duration,
                                             dict=self.metrics
                                             )
-            if (epoch + 1) % opts['weights_save_frequency'] == 0 :
+            if (epoch + 1) % opts['weights_save_frequency'] == 0 or epoch==0:
 
 
                 save_folder = self.checkpoints_path / "models" / "weights_{}".format(epoch)

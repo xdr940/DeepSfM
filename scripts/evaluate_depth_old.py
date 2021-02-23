@@ -1,15 +1,12 @@
 from __future__ import absolute_import, division, print_function
-import os
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt#debug
 import torch
 from torch.utils.data import DataLoader
 from networks.layers import disp_to_depth
 from utils.official import readlines
-from opts.evaluate_depth_opts import evaluate_depth_opts
+from opts.olds.evaluate_depth_opts import evaluate_depth_opts
 import datasets
-from datasets.kitti_dataset import KITTIRAWDataset as KITTIRAWDatasetv1
 import networks
 from tqdm import  tqdm
 from path import Path
