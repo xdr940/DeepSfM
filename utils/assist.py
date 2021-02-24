@@ -7,6 +7,7 @@ import torch
 def model_init(model_opt):
     # models
     # details
+    print("-> framework mode:{}".format(model_opt['mode']))
     device = model_opt['device']
     models = {}  # dict
     scales = model_opt['scales']

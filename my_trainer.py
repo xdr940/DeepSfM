@@ -428,18 +428,22 @@ class Trainer:
         outputs={}
 
         #depth input cat
+        color_3din=None
+        color_1in=None
+        color_3in=None
+        depth_in = None
         if framework_mode[0]=="1in":#0:1614,1:1608
-            input_d = inputs["color_aug", 0, 0]
-
+            color_1in = inputs["color_aug", 0, 0]
+            depth_in = color_1in
         elif framework_mode[0] =="3din":
             #3d-in
-            input_d = torch.cat([inputs["color_aug", -1, 0].unsqueeze(dim=2),
+            color_3din = torch.cat([inputs["color_aug", -1, 0].unsqueeze(dim=2),
                                    inputs["color_aug", 0, 0].unsqueeze(dim=2),
                                    inputs["color_aug", 1, 0].unsqueeze(dim=2)],
                                   dim=2)
-
+            depth_in = color_3din
         #depth pass
-        features = self.models["encoder"](input_d)#0:1611,1:1676
+        features = self.models["encoder"](depth_in)#0:1611,1:1676
         features = tuple(features)#0:2522, 1:5232
         disp = self.models["depth"](*features)
         outputs[("disp", 0, 0)] = disp[0]#0:3808
@@ -448,20 +452,28 @@ class Trainer:
         outputs[("disp", 0, 3)] = disp[3]
 
         #pose input cat
-        if framework_mode[1] =="3in":#
-            # input_p  = torch.cat([inputs["color_aug", -1, 0].unsqueeze(dim=2),
-            #                        inputs["color_aug", 0, 0].unsqueeze(dim=2),
-            #                        inputs["color_aug", 1, 0].unsqueeze(dim=2)],
-            #                       dim=2)
-            input_p = torch.cat([inputs["color_aug", -1, 0],
+        if framework_mode[1] =="3in":
+            color_3in = torch.cat([inputs["color_aug", -1, 0],
                                  inputs["color_aug", 0, 0],
                                  inputs["color_aug", 1, 0]],
                                 dim=1)
 
-            poses = self.models['pose'](input_p)#0:3877
-            #0:4593
+            pose_in = color_3in
+            poses = self.models['pose'](pose_in)
         elif framework_mode[1]=="3din":
-            poses = self.models['pose'](input_d)
+            if color_3din!=None:
+                pass
+            else:
+                color_3din = torch.cat([inputs["color_aug", -1, 0].unsqueeze(dim=2),
+                                     inputs["color_aug", 0, 0].unsqueeze(dim=2),
+                                     inputs["color_aug", 1, 0].unsqueeze(dim=2)],
+                                    dim=2)
+
+            pose_in = color_3din
+
+            poses = self.models['pose'](pose_in)
+
+
         elif framework_mode =="fin-2out":
             poses= self.models['pose'](*features)
         else:

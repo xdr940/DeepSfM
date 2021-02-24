@@ -7,15 +7,15 @@ model:
     posecnn: null
   device: 'cuda'
   scales: [0,1,2,3]
-  lr: 0.001
-  scheduler_step_size: 15
+  lr: 0.0001
+  scheduler_step_size: 25
   optimizer_path: null
 
 dataset:
   type: 'mc'
   path: '/home/roit/datasets/mcv4'
   split:
-    path: '/home/roit/datasets/splits/mc/mcv4-sildurs-10k-12345'
+    path: '/home/roit/datasets/splits/mc/mcv4-sildurs-h-2k-12345'
     train_file: 'train.txt'
     val_file: 'val.txt'
   num_workers: 12
@@ -37,7 +37,7 @@ epoch: 30
 frame_sides: [-1,0,1]
 
 yaml_file: /home/roit/aws/aprojects/DeepSfMLearner/opts/mc.yaml
-log_dir: '/home/roit/models_970evop3/DeepSfM/mc'
+log_dir: '/home/roit/models/DeepSfM/mc'
 tb_log_frequency: 12
 weights_save_frequency: 5
 min_depth: 0.1
