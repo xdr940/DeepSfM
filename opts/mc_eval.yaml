@@ -1,8 +1,8 @@
 model:
   mode: "3din" #[encoder,depth,posecnn]
   load_paths:
-    encoder: '/home/roit/models/DeepSfM/mc/0224_1230/models/weights_29/encoder.pth'
-    depth: '/home/roit/models/DeepSfM/mc/0224_1230/models/weights_29/depth.pth'
+    encoder: '/home/roit/models/DeepSfM/mc/0224_1333/models/weights_29/encoder.pth'
+    depth: '/home/roit/models/DeepSfM/mc/0224_1333/models/weights_29/depth.pth'
     #pose: null
     posecnn: null
   device: 'cuda'
@@ -13,7 +13,7 @@ dataset:
   type: 'mc'
   path: '/home/roit/datasets/mcv4'
   split:
-    path: '/home/roit/datasets/splits/mc/mcv4-sildurs-2k-12345'
+    path: '/home/roit/datasets/splits/mc/mcv4-sildurs-h-2k-12345'
     train_file: 'train.txt'
     val_file: 'val.txt'
     test_file: 'test.txt'
