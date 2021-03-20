@@ -8,15 +8,18 @@ from __future__ import absolute_import, division, print_function
 
 from my_trainer import Trainer
 from utils.yaml_wrapper import YamlHandler
+import argparse
 
 
-def main():
-    opts = YamlHandler('/home/roit/aws/aprojects/DeepSfMLearner/opts/mc.yaml').read_yaml()
-    # opts = YamlHandler('/home/roit/aws/aprojects/DeepSfMLearner/opts/kitti.yaml').read_yaml()
 
-    trainer = Trainer(opts)
+def main(args):
+    opts = YamlHandler(args.settings).read_yaml()
+    trainer = Trainer(opts,settings=args.settings)#after decoder the yaml file, send the filename to trainer for checkpoints saving
     trainer(opts)
     print('training over')
 
 if __name__ == "__main__":
-     main()
+    parser = argparse.ArgumentParser(description="DeepSfM")
+    parser.add_argument("--settings", default='/home/roit/aws/aprojects/DeepSfMLearner/opts/kitti.yaml')
+    args = parser.parse_args()
+    main(args)

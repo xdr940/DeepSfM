@@ -47,17 +47,33 @@ def set_mode(models, mode):
         else:
             m.eval()
 def compute_reprojection_loss(ssim, pred, target):
-            """Computes reprojection loss between a batch of predicted and target images
-            """
-            abs_diff = torch.abs(target - pred)
-            l1_loss = abs_diff.mean(1, True)  # [b,1,h,w]
+    """Computes reprojection loss between a batch of predicted and target images
+    """
+    abs_diff = torch.abs(target - pred)
+    l1_loss = abs_diff.mean(1, True)  # [b,1,h,w]
 
-            ssim_loss = ssim(pred, target).mean(1, True)
-            reprojection_loss = 0.85 * ssim_loss + 0.15 * l1_loss
+    ssim_loss = ssim(pred, target).mean(1, True)
+    reprojection_loss = 0.85 * ssim_loss + 0.15 * l1_loss
 
-            return reprojection_loss  # [b,1,h,w]
+    return reprojection_loss  # [b,1,h,w]
+
+def L1_loss(pred,depth_gt):
+    mask = depth_gt > depth_gt.min()
+    mask *= depth_gt < depth_gt.max()
+    abs_diff = torch.abs(depth_gt - pred)
+    l1_loss = abs_diff[mask]  # [b,1,h,w]
+    return l1_loss
+
+def L2_loss(pred,depth_gt):
+    mask = depth_gt > depth_gt.min()
+    mask *= depth_gt < depth_gt.max()
+    abs_sq = (depth_gt - pred)**2
+    l2_loss = abs_sq[mask]  # [b,1,h,w]
+    return l2_loss
+
+
 class Trainer:
-    def __init__(self, options):
+    def __init__(self, options,settings):
 
         def dataset_init(dataset_opt):
 
@@ -146,6 +162,7 @@ class Trainer:
 
         self.scales = options['model']['scales']
         self.model_mode = options['model']['mode']
+        self.framework = options['model']['framework']
 
         self.feed_width = options['dataset']['to_width']
         self.feed_height = options['dataset']['to_height']
@@ -222,11 +239,11 @@ class Trainer:
 
 
         #print("Training model named:\t  ", self.opt.model_name)
+        print('--> framework{}'.format(self.framework))
         print("traing files are saved to: ", options['log_dir'])
         print("Training is using: ", self.device)
         print("start time: ",self.start_time)
-
-        os.system('cp {} {}/train_settings.yaml'.format(options['yaml_file'], self.checkpoints_path))
+        os.system('cp {} {}/train_settings.yaml'.format(settings, self.checkpoints_path))
 
         #self.save_opts()
 
@@ -324,31 +341,43 @@ class Trainer:
 
 
         losses = {}
-        total_loss = 0
+        loss_scales = 0
         height,width = inputs[('color',0,0)].shape[2:]
         depth_gt_feed = F.interpolate(inputs["depth_gt"],[height,width], mode="bilinear", align_corners=False)
-        for scale in scales:
 
+        for scale in scales:
+            loss = 0
+            #color = inputs[("color", 0, scale)]
 
             disp = outputs[("disp", 0, scale)]
-            disp = F.interpolate(disp, [height, width], mode="bilinear", align_corners=False)
-            depth  = disp2depth(disp)
+            disp_full = F.interpolate(disp, [height, width], mode="bilinear", align_corners=False)
+            _,depth  = disp_to_depth(disp_full)
             if scale ==0:
                 outputs[("depth",0,scale)] = depth
 
-            to_optimise =  compute_reprojection_loss(self.layers['ssim'], depth, depth_gt_feed)
+            to_optimise =  L1_loss(disp_full, 1/(depth_gt_feed+1e-7))
 
             #to_optimise = (depth_gt_feed - depth).abs()**2
 
 
-            loss = to_optimise.mean()/(2**scale)
+            loss += to_optimise.mean()
 
-            total_loss += loss
+
+            mean_disp = disp_full.mean(2, True).mean(3, True)
+            norm_disp = disp_full / (mean_disp + 1e-7)
+            smooth_loss = get_smooth_loss(norm_disp, 1/depth)
+
+            loss += 0.1 * smooth_loss / (2 ** scale)
+
+            loss_scales += loss
             losses["loss/{}".format(scale)] = loss
 
-        total_loss /= len(scales)
-        losses["loss"] = total_loss
+        loss_scales /= len(scales)
+        losses["loss"] = loss_scales
         return  losses
+    def compute_losses_rebuild(self,inputs,outputs):
+        #TODO
+        pass
     def generate_images_pred(self,inputs, outputs):
         """Generate the warped (reprojected) color images for a minibatch.
         Generated images are saved into the `outputs` dictionary as color_identity.
@@ -408,7 +437,7 @@ class Trainer:
                 outputs[("color_identity", frame_side, scale)] = inputs[("color", frame_side, source_scale)]
 
     #1. forward pass1, more like core
-    def batch_process(self, framework_mode,inputs):
+    def batch_process(self, model_mode,framework,inputs):
         """Pass a minibatch through the network and generate images and losses
         """
 
@@ -432,10 +461,10 @@ class Trainer:
         color_1in=None
         color_3in=None
         depth_in = None
-        if framework_mode[0]=="1in":#0:1614,1:1608
+        if model_mode[0]=="1in":#0:1614,1:1608
             color_1in = inputs["color_aug", 0, 0]
             depth_in = color_1in
-        elif framework_mode[0] =="3din":
+        elif model_mode[0] =="3din":
             #3d-in
             color_3din = torch.cat([inputs["color_aug", -1, 0].unsqueeze(dim=2),
                                    inputs["color_aug", 0, 0].unsqueeze(dim=2),
@@ -452,56 +481,70 @@ class Trainer:
         outputs[("disp", 0, 3)] = disp[3]
 
         #pose input cat
-        if framework_mode[1] =="3in":
-            color_3in = torch.cat([inputs["color_aug", -1, 0],
-                                 inputs["color_aug", 0, 0],
-                                 inputs["color_aug", 1, 0]],
-                                dim=1)
+        if framework=='sfmlearner':
+            if model_mode[1]=='2in':
+                color_2in = torch.cat([inputs["color_aug", -1, 0],
+                                     inputs["color_aug", 0, 0],
+                                     ],
+                                    dim=1)
+                color_2in_ = torch.cat([inputs["color_aug", 0, 0],
+                                     inputs["color_aug", 1, 0],
+                                     ],
+                                    dim=1)
+                pose1 = self.models['pose'](color_2in)
+                pose2 = self.models['pose'](color_2in_)
+                poses = torch.cat([pose1,pose2],dim=1)
 
-            pose_in = color_3in
-            poses = self.models['pose'](pose_in)
-        elif framework_mode[1]=="3din":
-            if color_3din!=None:
-                pass
+            if model_mode[1] =="3in":
+                color_3in = torch.cat([inputs["color_aug", -1, 0],
+                                     inputs["color_aug", 0, 0],
+                                     inputs["color_aug", 1, 0]],
+                                    dim=1)
+
+                pose_in = color_3in
+
+
+            elif model_mode[1]=="3din":
+                if color_3din!=None:
+                    pass
+                else:
+                    color_3din = torch.cat([inputs["color_aug", -1, 0].unsqueeze(dim=2),
+                                         inputs["color_aug", 0, 0].unsqueeze(dim=2),
+                                         inputs["color_aug", 1, 0].unsqueeze(dim=2)],
+                                        dim=2)
+
+                pose_in = color_3din
+
+                poses = self.models['pose'](pose_in)
+
+
+            elif model_mode[1] =="fin-2out":
+                poses= self.models['pose'](*features)
             else:
-                color_3din = torch.cat([inputs["color_aug", -1, 0].unsqueeze(dim=2),
-                                     inputs["color_aug", 0, 0].unsqueeze(dim=2),
-                                     inputs["color_aug", 1, 0].unsqueeze(dim=2)],
-                                    dim=2)
-
-            pose_in = color_3din
-
-            poses = self.models['pose'](pose_in)
+                pass
 
 
-        elif framework_mode =="fin-2out":
-            poses= self.models['pose'](*features)
-        else:
-            pass
+            #pose pass
+            cam_T_cam = transformation_from_parameters(
+                poses[:, 0,0,:3].unsqueeze(1), poses[:, 0,0,3:].unsqueeze(1), invert=True
+            )  # b44
+            outputs[("cam_T_cam", 0, -1)] = cam_T_cam
 
+            cam_T_cam = transformation_from_parameters(
+                poses[:, 1,0,:3].unsqueeze(1), poses[:, 1,0,3:].unsqueeze(1), invert=False
+            )  # b44
+            outputs[("cam_T_cam", 0, 1)] = cam_T_cam
 
-        #pose pass
-        cam_T_cam = transformation_from_parameters(
-            poses[:, 0,0,:3].unsqueeze(1), poses[:, 0,0,3:].unsqueeze(1), invert=True
-        )  # b44
-        outputs[("cam_T_cam", 0, -1)] = cam_T_cam
-
-        cam_T_cam = transformation_from_parameters(
-            poses[:, 1,0,:3].unsqueeze(1), poses[:, 1,0,3:].unsqueeze(1), invert=False
-        )  # b44
-        outputs[("cam_T_cam", 0, 1)] = cam_T_cam
-
-
+            self.generate_images_pred(inputs, outputs)  # 0:5629 # outputs get depth 0 0
+            losses = self.compute_losses(inputs, outputs)  # 0:8561
 
 
         #
-        if framework_mode!="spv":
-            self.generate_images_pred(inputs, outputs) #0:5629 # outputs get depth 0 0
-            losses = self.compute_losses(inputs, outputs)#0:8561
-
-        elif framework_mode=="spv":
+        elif framework=="spv":
             losses = self.compute_losses_spv(inputs, outputs)
 
+        elif framework=="rebuild":
+            pass
 
         return outputs, losses
 
@@ -535,7 +578,7 @@ class Trainer:
         mask = depth_gt > depth_gt.min()
         mask*=depth_gt< depth_gt.max()
         # garg/eigen crop#????
-        if dataset_type =='kitti2':#val_dataset, 由于gt缺失, 上半部分不参与
+        if dataset_type =='kitti':#val_dataset, 由于gt缺失, 上半部分不参与
             crop_mask = torch.zeros_like(mask)
             crop_mask[:, :, 153:371, 44:1197] = 1
             mask = mask * crop_mask
@@ -651,7 +694,7 @@ class Trainer:
         for batch_idx, inputs in enumerate(self.train_loader):
             before_op_time = time.time()
             #model forwardpass
-            outputs, losses = self.batch_process(self.model_mode,inputs)#
+            outputs, losses = self.batch_process(self.model_mode,self.framework,inputs)#
 
             self.model_optimizer.zero_grad()
             losses["loss"].backward()
@@ -718,7 +761,7 @@ class Trainer:
                                             time=duration,
                                             dict=self.metrics
                                             )
-            if (epoch + 1) % opts['weights_save_frequency'] == 0 or epoch==0:
+            if (epoch + 1) % opts['weights_save_frequency'] == 0 and epoch+1>=opts['model_first_save']:
 
 
                 save_folder = self.checkpoints_path / "models" / "weights_{}".format(epoch)
@@ -761,8 +804,8 @@ class Trainer:
 
 
         time_st = time.time()
+        outputs, losses = self.batch_process(self.model_mode,self.framework,inputs)
 
-        outputs, losses = self.batch_process(self.model_mode,inputs)
 
 
         duration =time.time() -  time_st

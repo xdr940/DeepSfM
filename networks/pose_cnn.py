@@ -110,6 +110,8 @@ def getPoseNet(mode):
         return PoseCNN(3)
     elif mode == "3din":
         return PoseC3D(3)
+    elif mode =='2in':
+        return PoseCNN(2)
 
 
 if __name__ == '__main__':

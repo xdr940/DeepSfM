@@ -1,8 +1,8 @@
 model:
   mode: "3din" #[encoder,depth,posecnn]
   load_paths:
-    encoder: '/home/roit/models/DeepSfM/mc/0224_1333/models/weights_29/encoder.pth'
-    depth: '/home/roit/models/DeepSfM/mc/0224_1333/models/weights_29/depth.pth'
+    encoder: '/home/roit/models/DeepSfM/mc/0318_2205/models/weights_29/encoder.pth'
+    depth: '/home/roit/models/DeepSfM/mc/0318_2205/models/weights_29/depth.pth'
     #pose: null
     posecnn: null
   device: 'cuda'
@@ -11,14 +11,14 @@ model:
 metric_mode: "mean"
 dataset:
   type: 'mc'
-  path: '/home/roit/datasets/mcv4'
+  path: '/home/roit/datasets/mcv5'
   split:
-    path: '/home/roit/datasets/splits/mc/mcv4-sildurs-h-2k-12345'
+    path: '/home/roit/datasets/splits/mc/mcv5-sildurs-e-10k-12345-s'
     train_file: 'train.txt'
     val_file: 'val.txt'
     test_file: 'test.txt'
-  num_workers: 12
-  batch_size: 16
+  num_workers: 0
+  batch_size: 12
   to_height: 288 #same with feed height
   to_width: 384
   full_width: 1024

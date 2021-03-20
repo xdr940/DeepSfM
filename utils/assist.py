@@ -7,24 +7,26 @@ import torch
 def model_init(model_opt):
     # models
     # details
-    print("-> framework mode:{}".format(model_opt['mode']))
+    print("--> model mode:{}".format(model_opt['mode']))
+    print("--> framework :{}".format(model_opt['framework']))
+
     device = model_opt['device']
     models = {}  # dict
     scales = model_opt['scales']
     lr = model_opt['lr']
     scheduler_step_size = model_opt['scheduler_step_size']
-    framework_mode = model_opt['mode']
+    model_mode = model_opt['mode']
     load_paths = model_opt['load_paths']
     optimizer_path = model_opt['optimizer_path']
 
     # encoder
-    models["encoder"] = networks.getEncoder(framework_mode[0])
+    models["encoder"] = networks.getEncoder(model_mode[0])
     models["depth"] = networks.getDepthDecoder()
 
-    if framework_mode[1] == "fin-2out":
+    if model_mode[1] == "fin-2out":
         models["pose"] = networks.getPoseDecoder("fin-2out")
     else:
-        models["pose"] = networks.getPoseNet(framework_mode[1])
+        models["pose"] = networks.getPoseNet(model_mode[1])
 
     # model device
     for k, v in models.items():
