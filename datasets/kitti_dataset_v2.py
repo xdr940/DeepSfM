@@ -272,7 +272,7 @@ class KITTIRAWDataset(MonoDataset):
 
     def get_depth(self, line, side,  do_flip):
 
-        date, scene, sensor, frame = relpath_split(self.filenames[0])
+        date, scene, sensor, frame = relpath_split(line)
         reframe = str(int(frame) + side)
 
         velo_filename = os.path.join(
@@ -306,16 +306,34 @@ class KITTIRAWDataset(MonoDataset):
 
 
         reframe = "{:010d}".format(int(frame)+side)
-
         path = os.path.join(
             date,
             scene,
             sensor,
             'data',
             reframe
-
         )
         image_path = Path(self.data_path)/ path+'.png'
+
+        # #3帧图像测试需要, 主要是针对eigen split那些official eval
+        # if not Path.exists(image_path) and int(frame)+side < 0:
+        #     path = os.path.join(
+        #         date,
+        #         scene,
+        #         sensor,
+        #         'data',
+        #         "{:010d}".format(0)
+        #     )
+        # elif not Path.exists(image_path) and int(frame)+side > 0:
+        #     path = os.path.join(
+        #         date,
+        #         scene,
+        #         sensor,
+        #         'data',
+        #         "{:010d}".format(int(frame))
+        #     )
+        #
+        # image_path = Path(self.data_path) / path + '.png'
         return image_path
 
 

@@ -2,7 +2,7 @@ model:
   mode: ['3din','3din'] #[encoder,depth,posecnn]
   framework: 'sfmlearner' #rebuild #sfmlearner
   load_paths:
-    encoder: null #'/home/roit/models/torchvision/official/resnet18-5c106cde.pth'
+    encoder: '/home/roit/models/torchvision/official/resnet18-5c106cde.pth'
     depth: null
     #pose: null
     posecnn: null
@@ -20,14 +20,14 @@ dataset:
     train_file: 'train.txt'
     val_file: 'val.txt'
   num_workers: 12
-  batch_size: 8
-  to_height: 384 #same with feed height
-  to_width: 512
+  batch_size: 12
+  to_height: 288 #same with feed height
+  to_width: 384
   full_width: 1024
   full_height: 768
 
-feed_width: 512  #"'width' must be a multiple of 32"
-feed_height: 384 #"'height' must be a multiple of 32"
+feed_width: 384  #"'width' must be a multiple of 32"
+feed_height: 288 #"'height' must be a multiple of 32"
 
 scales: [0,1,2,3]
 disparity_smoothness: 0.1 #set manual

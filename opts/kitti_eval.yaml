@@ -1,27 +1,29 @@
+#frame_sides: [-1,0,1]
+frame_sides: [0]
 model:
-  mode: 0 #[encoder,depth,posecnn]
+#  mode: "3din" #[encoder,depth,posecnn]
+  mode: "1in"
   load_paths:
-#    encoder: '/home/roit/models/DeepSfM/mc/02191916/models/weights_29/encoder.pth'
-#    depth: '/home/roit/models/DeepSfM/mc/02191916/models/weights_29/depth.pth'
-    encoder: '/home/roit/models/monodepth2_official/mono_640x192/encoder.pth'
-    depth: '/home/roit/models/monodepth2_official/mono_640x192/depth.pth'
+    encoder: '/home/roit/models/DeepSfM/kitti/0320_2332/models/weights_19/encoder.pth'#1in
+#    encoder: '/home/roit/models/DeepSfM/kitti/0320_1050/models/weights_19/encoder.pth'#3din
+    #    encoder: '/home/roit/models/monodepth2_official/mono_640x192/encoder.pth'
+    depth: '/home/roit/models/DeepSfM/kitti/0320_2332/models/weights_19/depth.pth'#1in
+#    depth: '/home/roit/models/DeepSfM/kitti/0320_1050/models/weights_19/depth.pth'#3din
+    #    depth: '/home/roit/models/monodepth2_official/mono_640x192/depth.pth'
     #pose: null
     posecnn: null
   device: 'cuda'
-  scales: [0,1,2,3]
-#  lr: 0.0001
-#  scheduler_step_size: 15
   optimizer_path: null
-
+metric_mode: "mean"
 dataset:
   type: 'kitti'
   path: '/home/roit/datasets/kitti'
   split:
-    path: '/home/roit/datasets/splits/eigen_std'
+    path: '/home/roit/datasets/splits/kitti/eigen_std'
     train_file: 'train.txt'
     val_file: 'val.txt'
-    test_file: 'test.txt'
-  num_workers: 12
+    test_file: 'wo.txt'
+  num_workers: 16
   batch_size: 16
   to_height: 192 #same with feed height
   to_width: 640
@@ -31,16 +33,8 @@ dataset:
 feed_width: 640  #"'width' must be a multiple of 32"
 feed_height: 192 #"'height' must be a multiple of 32"
 
-scales: [0,1,2,3]
-disparity_smoothness: 0.1 #set manual
 cuda: True
 device: 'cuda'
 
-frame_sides: [-1,0,1]
-
-yaml_file: /home/roit/aws/aprojects/DeepSfMLearner/opts/mc.yaml
-log_dir: '/home/roit/models/DeepSfM/mc'
-tb_log_frequency: 12
-weights_save_frequency: 5
-min_depth: 0.001
+min_depth: 0.1
 max_depth: 80.0

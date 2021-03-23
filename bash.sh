@@ -11,5 +11,5 @@ clear
 
 
 echo mc.yaml
-python scripts/train.py --settings /home/roit/aws/aprojects/DeepSfMLearner/opts/mc.yaml
+python scripts/train.py --settings /home/roit/aws/aprojects/DeepSfMLearner/opts/mc6.yaml
 clear

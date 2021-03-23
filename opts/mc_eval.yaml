@@ -1,8 +1,8 @@
 model:
   mode: "3din" #[encoder,depth,posecnn]
   load_paths:
-    encoder: '/home/roit/models/DeepSfM/mc/0318_2205/models/weights_29/encoder.pth'
-    depth: '/home/roit/models/DeepSfM/mc/0318_2205/models/weights_29/depth.pth'
+    encoder: '/home/roit/models/DeepSfM/tmp/0318_2205/models/weights_29/encoder.pth'
+    depth: '/home/roit/models/DeepSfM/tmp/0318_2205/models/weights_29/depth.pth'
     #pose: null
     posecnn: null
   device: 'cuda'

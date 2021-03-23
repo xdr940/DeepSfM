@@ -22,6 +22,15 @@ def readlines(filename):
         lines = f.read().splitlines()
     return lines
 
+def writelines(path,list):
+    lenth = len(list)
+    with open(path,'w') as f:
+        for i in range(lenth):
+            if i == lenth-1:
+                f.writelines(str(list[i]))
+            else:
+                f.writelines(str(list[i])+'\n')
+
 
 def normalize_image(x):
     """Rescale image pixels to span range [0, 1]

@@ -1,5 +1,5 @@
 model:
-  mode: ['3din','3in'] #[encoder,depth,posecnn]
+  mode: ['3din','3din'] #[encoder,depth,posecnn]
   framework: 'sfmlearner' #rebuild #sfmlearner
   load_paths:
     encoder: null #'/home/roit/models/torchvision/official/resnet18-5c106cde.pth'
@@ -18,7 +18,7 @@ dataset:
   split:
     path: '/home/roit/datasets/splits/mc/random-sildurs-e-2k-12345'
     train_file: 'train.txt'
-    val_file: 'val.txt'
+    val_file: 'train.txt'
   num_workers: 12
   batch_size: 12
   to_height: 288 #same with feed height

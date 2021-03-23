@@ -78,20 +78,22 @@ def model_init(model_path,mode):
     encoder_path = model_path['encoder']
     decoder_path = model_path['depth']
 
-
+    #model init
     encoder = getEncoder(model_mode=mode)
     depth_decoder = getDepthDecoder(model_mode=1,mode='test')
 
+    #encoder dict updt
     encoder_dict = torch.load(encoder_path)
     encoder_dict = dict_update(encoder_dict)
     decoder_dict = torch.load(decoder_path)
 
 
-
+    #load encoder dict
     model_dict = encoder.state_dict()
     model_dict_ = {k: v for k, v in encoder_dict.items() if k in model_dict}
     encoder.load_state_dict(model_dict_)
 
+    #load decoder dict
     model_dict = depth_decoder.state_dict()
     decoder_dict_ = {k: v for k, v in decoder_dict.items() if k in model_dict}
     depth_decoder.load_state_dict(decoder_dict_)
@@ -161,6 +163,7 @@ def evaluate(opts):
     lines = Path(opts['dataset']['split']['path'])/opts['dataset']['split']['test_file']
     model_path = opts['model']['load_paths']
     model_mode = opts['model']['mode']
+    frame_sides = opts['frame_sides']
     encoder,decoder = model_init(model_path,mode=model_mode)
     file_names = readlines(lines)
 
@@ -171,24 +174,25 @@ def evaluate(opts):
 
     print("-> metrics mode: {}".format(metric_mode))
     print("-> data split:{}".format(lines))
+    print('-> total:{}'.format(len(file_names)))
 
     if opts['dataset']['type']=='mc':
         dataset = datasets.MCDataset(data_path=data_path,
                                        filenames=file_names,
                                        height=feed_height,
                                        width=feed_width,
-                                       frame_sides=[-1,0,1],
+                                       frame_sides=frame_sides,
                                      num_scales=1,
                                      mode="test")
     elif opts['dataset']['type']=='kitti':
 
         dataset = datasets.KITTIRAWDataset (  # KITTIRAWData
-            data_path,
-            file_names,
-            feed_height,
-            feed_width,
-            [0],
-            4,
+            data_path = data_path,
+            filenames=file_names,
+            height=feed_height,
+            width=feed_width,
+            frame_sides=frame_sides,
+            num_scales=1,
             mode="test"
         )
 
@@ -218,17 +222,15 @@ def evaluate(opts):
         pred_disp, pred_depth = disp_to_depth(disp,min_depth=MIN_DEPTH, max_depth=MAX_DEPTH)
         #pred_depth = disp2depth(disp)
 
-        pred_depth = pred_depth.cpu().numpy()
-        depth_gt = depth_gt.cpu().numpy()
+        pred_depth = pred_depth.cpu()[:,0].numpy()
+        depth_gt = depth_gt.cpu()[:,0].numpy()
 
         pred_depths.append(pred_depth)
         gt_depths.append(depth_gt)
     gt_depths = np.concatenate(gt_depths, axis=0)
-    gt_depths = gt_depths.squeeze(axis=1)
 
 
     pred_depths = np.concatenate(pred_depths,axis=0)
-    pred_depths = pred_depths.squeeze(axis=1)
 
 
 
@@ -260,7 +262,8 @@ def evaluate(opts):
             crop_mask[crop[0]:crop[1], crop[2]:crop[3]] = 1
             mask = np.logical_and(mask, crop_mask)
         else:
-            mask = gt > 0
+            mask = np.logical_and(gt > MIN_DEPTH, gt < MAX_DEPTH)
+
 
         pred = pred[mask]  # 并reshape成1d
         gt = gt[mask]
@@ -283,8 +286,8 @@ def evaluate(opts):
 
 
     ratios = np.array(ratios)
-    med = np.median(ratios)
-    print("\n Scaling ratios | med: {:0.3f} | std: {:0.3f}\n".format(med, np.std(ratios / med)))
+    median = np.median(ratios)
+    print("\n Scaling ratios | med: {:0.3f} | std: {:0.3f}\n".format(median, np.std(ratios / median)))
 
 
 
@@ -297,8 +300,8 @@ def evaluate(opts):
 
 if __name__ == "__main__":
 
-    # opts = YamlHandler('/home/roit/aws/aprojects/DeepSfMLearner/opts/kitti_eval.yaml').read_yaml()
-    opts = YamlHandler('/home/roit/aws/aprojects/DeepSfMLearner/opts/mc_eval.yaml').read_yaml()
+    opts = YamlHandler('/home/roit/aws/aprojects/DeepSfMLearner/opts/kitti_eval.yaml').read_yaml()
+    # opts = YamlHandler('/home/roit/aws/aprojects/DeepSfMLearner/opts/mc_eval.yaml').read_yaml()
 
 
     evaluate(opts)

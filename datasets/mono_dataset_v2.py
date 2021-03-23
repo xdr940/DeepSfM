@@ -147,9 +147,9 @@ class MonoDataset(data.Dataset):
             try:
                 inputs[("color", side, -1)] = self.get_color(split_line, side,  do_flip)  # inputs得到scale == -1的前 中后三帧
             except:
-                import os
                 # os.system('clear')
                 # print(split_line)
+                print('frame load failed')
                 exit(-1)
 
         # adjusting intrinsics to match each scale in the pyramid

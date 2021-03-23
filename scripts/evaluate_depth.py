@@ -9,6 +9,13 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
+
+
+from networks.encoders import getEncoder
+from networks.decoders import getDepthDecoder
+
+
+
 from networks.layers import disp_to_depth
 from utils.official import readlines
 import datasets
@@ -19,6 +26,15 @@ from utils.yaml_wrapper import YamlHandler
 from utils.official import compute_errors
 
 cv2.setNumThreads(0)  # This speeds up evaluation 5x on our unix systems (OpenCV 3.3.1)
+def dict_update(dict):
+
+    keys = list(dict.keys()).copy()
+    for key in keys:
+        if 'encoder.' in key:
+            new_key = key.replace('encoder.','')
+            dict[new_key] =  dict.pop(key)
+
+    return dict
 
 
 
@@ -101,17 +117,23 @@ def evaluate(opts):
 
     #model loading
     filenames = readlines(test_dir/ test_file)
-    encoder_path = Path(opts['model']['load_paths']['encoder'])
-    decoder_path = Path(opts['model']['load_paths']['depth'])
+    encoder_path = opts['model']['load_paths']['encoder']
+    decoder_path = opts['model']['load_paths']['depth']
+
+    encoder = getEncoder(model_mode='1in')
+    depth_decoder = getDepthDecoder(model_mode=1, mode='test')
 
     encoder_dict = torch.load(encoder_path)
-
-    encoder = networks.ResnetEncoder(18, False)
-    depth_decoder = networks.DepthDecoder(encoder.num_ch_enc)
+    encoder_dict = dict_update(encoder_dict)
+    decoder_dict = torch.load(decoder_path)
 
     model_dict = encoder.state_dict()
-    encoder.load_state_dict({k: v for k, v in encoder_dict.items() if k in model_dict})
-    depth_decoder.load_state_dict(torch.load(decoder_path))
+    model_dict_ = {k: v for k, v in encoder_dict.items() if k in model_dict}
+    encoder.load_state_dict(model_dict_)
+
+    model_dict = depth_decoder.state_dict()
+    decoder_dict_ = {k: v for k, v in decoder_dict.items() if k in model_dict}
+    depth_decoder.load_state_dict(decoder_dict_)
 
     encoder.cuda()
     encoder.eval()
