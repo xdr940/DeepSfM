@@ -159,7 +159,7 @@ class Trainer:
         self.start_time = datetime.datetime.now().strftime("%m-%d-%H:%M")
         self.checkpoints_path = Path(options['log_dir'])/self.start_time
         self.frame_sides = options['frame_sides']# all around
-
+        self.frame_prior,self.frame_now,self.frame_next = self.frame_sides
         self.scales = options['model']['scales']
         self.model_mode = options['model']['mode']
         self.framework = options['model']['framework']
@@ -239,7 +239,7 @@ class Trainer:
 
 
         #print("Training model named:\t  ", self.opt.model_name)
-        print('--> framework{}'.format(self.framework))
+        print('--> frame sides:{}'.format(self.frame_sides))
         print("traing files are saved to: ", options['log_dir'])
         print("Training is using: ", self.device)
         print("start time: ",self.start_time)
@@ -266,13 +266,13 @@ class Trainer:
 
             source_scale = 0
 
-            disp = outputs[("disp", 0, scale)]
-            color = inputs[("color", 0, scale)]
-            target = inputs[("color", 0, source_scale)]
+            disp = outputs[("disp", self.frame_now, scale)]
+            color = inputs[("color", self.frame_now, scale)]
+            target = inputs[("color", self.frame_now, source_scale)]
 
             # reprojection_losses
             reprojection_losses = []
-            for frame_id in [frame_sides[0],frame_sides[2]]:
+            for frame_id in [self.frame_prior,self.frame_next]:
                 pred = outputs[("color", frame_id, scale)]
                 reprojection_losses.append(compute_reprojection_loss(self.layers['ssim'], pred, target))
 
@@ -280,7 +280,7 @@ class Trainer:
 
             # identity_reprojection_losses
             identity_reprojection_losses = []
-            for frame_id in[frame_sides[0],frame_sides[2]]:
+            for frame_id in [self.frame_prior,self.frame_next]:
                 pred = inputs[("color", frame_id, source_scale)]
                 identity_reprojection_losses.append(
                     compute_reprojection_loss(self.layers['ssim'], pred, target))
@@ -299,7 +299,7 @@ class Trainer:
             erro_maps = torch.cat((identity_reprojection_loss, reprojection_loss), dim=1)  # b4hw
 
             # --------------------------------------------------------------
-            map_34, idxs_1 = torch.min(reprojection_loss, dim=1)
+            map_34, idxs_1 = torch.min(reprojection_loss, dim=1)# w.o identical mask
             # map_34 = torch.mean(reprojection_loss, dim=1)
 
             # var_mask = VarMask(erro_maps)
@@ -466,9 +466,9 @@ class Trainer:
             depth_in = color_1in
         elif model_mode[0] =="3din":
             #3d-in
-            color_3din = torch.cat([inputs["color_aug", -1, 0].unsqueeze(dim=2),
-                                   inputs["color_aug", 0, 0].unsqueeze(dim=2),
-                                   inputs["color_aug", 1, 0].unsqueeze(dim=2)],
+            color_3din = torch.cat([inputs["color_aug", self.frame_prior, 0].unsqueeze(dim=2),
+                                   inputs["color_aug", self.frame_now, 0].unsqueeze(dim=2),
+                                   inputs["color_aug", self.frame_next, 0].unsqueeze(dim=2)],
                                   dim=2)
             depth_in = color_3din
         #depth pass
@@ -483,12 +483,12 @@ class Trainer:
         #pose input cat
         if framework=='sfmlearner':
             if model_mode[1]=='2in':
-                color_2in = torch.cat([inputs["color_aug", -1, 0],
-                                     inputs["color_aug", 0, 0],
+                color_2in = torch.cat([inputs["color_aug", self.frame_prior, 0],
+                                     inputs["color_aug", self.frame_now, 0],
                                      ],
                                     dim=1)
-                color_2in_ = torch.cat([inputs["color_aug", 0, 0],
-                                     inputs["color_aug", 1, 0],
+                color_2in_ = torch.cat([inputs["color_aug", self.frame_now, 0],
+                                     inputs["color_aug", self.frame_next, 0],
                                      ],
                                     dim=1)
                 pose1 = self.models['pose'](color_2in)
@@ -496,9 +496,9 @@ class Trainer:
                 poses = torch.cat([pose1,pose2],dim=1)
 
             if model_mode[1] =="3in":
-                color_3in = torch.cat([inputs["color_aug", -1, 0],
-                                     inputs["color_aug", 0, 0],
-                                     inputs["color_aug", 1, 0]],
+                color_3in = torch.cat([inputs["color_aug",self.frame_prior, 0],
+                                     inputs["color_aug", self.frame_now, 0],
+                                     inputs["color_aug", self.frame_next, 0]],
                                     dim=1)
 
                 pose_in = color_3in
@@ -508,9 +508,9 @@ class Trainer:
                 if color_3din!=None:
                     pass
                 else:
-                    color_3din = torch.cat([inputs["color_aug", -1, 0].unsqueeze(dim=2),
-                                         inputs["color_aug", 0, 0].unsqueeze(dim=2),
-                                         inputs["color_aug", 1, 0].unsqueeze(dim=2)],
+                    color_3din = torch.cat([inputs["color_aug", self.frame_prior, 0].unsqueeze(dim=2),
+                                         inputs["color_aug", self.frame_now, 0].unsqueeze(dim=2),
+                                         inputs["color_aug", self.frame_next, 0].unsqueeze(dim=2)],
                                         dim=2)
 
                 pose_in = color_3din
@@ -528,12 +528,12 @@ class Trainer:
             cam_T_cam = transformation_from_parameters(
                 poses[:, 0,0,:3].unsqueeze(1), poses[:, 0,0,3:].unsqueeze(1), invert=True
             )  # b44
-            outputs[("cam_T_cam", 0, -1)] = cam_T_cam
+            outputs[("cam_T_cam", self.frame_now, self.frame_prior)] = cam_T_cam
 
             cam_T_cam = transformation_from_parameters(
                 poses[:, 1,0,:3].unsqueeze(1), poses[:, 1,0,3:].unsqueeze(1), invert=False
             )  # b44
-            outputs[("cam_T_cam", 0, 1)] = cam_T_cam
+            outputs[("cam_T_cam", self.frame_now, self.frame_next)] = cam_T_cam
 
             self.generate_images_pred(inputs, outputs)  # 0:5629 # outputs get depth 0 0
             losses = self.compute_losses(inputs, outputs)  # 0:8561
@@ -626,7 +626,7 @@ class Trainer:
             "a3"]
         log_scales=[0]
         #log_frame_sides=[-1,0,1]
-        log_frame_sides=[0]
+        log_frame_sides=[self.frame_prior,self.frame_now,self.frame_next]
 
 
 
@@ -648,13 +648,18 @@ class Trainer:
             b=0# int(random.random()*8)
 
             for s in log_scales:
-                #color add
+                #color adde
                 for frame_side in log_frame_sides:
                     if frame_side==0:
                         writer.add_image(
                             "color/{}".format(frame_side),
                             inputs[("color", frame_side, s)][b].data, self.step
                         )
+                        if "depth_gt" in inputs.keys():
+                            writer.add_image(
+                                "gt/{}".format(frame_side),
+                                normalize_image(inputs[("depth_gt")][b].data), self.step
+                            )
                     else:
                         writer.add_image(
                             "color_pred/{}".format(frame_side, s, b),

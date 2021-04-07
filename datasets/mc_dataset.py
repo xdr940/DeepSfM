@@ -106,7 +106,7 @@ class MCDataset(MonoDataset):
 
         if do_flip:
             depth_gt = np.fliplr(depth_gt)
-        return depth_gt*100#[0~1]
+        return depth_gt*576  #[0~1] if 100, same with kitti
 
 
     def __get_image_path__(self, line, side):

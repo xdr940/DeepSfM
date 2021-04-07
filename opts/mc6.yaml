@@ -14,9 +14,9 @@ model:
 
 dataset:
   type: 'mc'
-  path: '/home/roit/datasets/mcv5'
+  path: '/home/roit/datasets/mcv31'
   split:
-    path: '/home/roit/datasets/splits/mc/mcv5-sildurs-e-2k-12345-s'
+    path: '/home/roit/datasets/splits/mc/mcv31-sildurs-e-6k-12345'
     train_file: 'train.txt'
     val_file: 'val.txt'
   num_workers: 12
@@ -34,7 +34,7 @@ disparity_smoothness: 0.1 #set manual
 cuda: True
 device: 'cuda'
 
-frame_sides: [-1,0,1]
+frame_sides: [-3,0,3]
 
 yaml_file: /home/roit/aws/aprojects/DeepSfMLearner/opts/mc.yaml
 log_dir: '/home/roit/models/DeepSfM/mc'

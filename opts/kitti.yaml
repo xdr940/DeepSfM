@@ -37,7 +37,7 @@ device: 'cuda'
 frame_sides: [-1,0,1]
 
 yaml_file: /home/roit/aws/aprojects/DeepSfMLearner/opts/mc.yaml
-log_dir: '/home/roit/models/DeepSfM/mc'
+log_dir: '/home/roit/models/DeepSfM/kitti'
 tb_log_frequency: 12
 epoch: 20
 model_first_save: 15

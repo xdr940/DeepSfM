@@ -2,7 +2,7 @@ model:
   mode: ['3din','3din'] #[encoder,depth,posecnn]
   framework: 'sfmlearner' #rebuild #sfmlearner
   load_paths:
-    encoder: null #'/home/roit/models/torchvision/official/resnet18-5c106cde.pth'
+    encoder: '/home/roit/models/torchvision/official/resnet18-5c106cde.pth'
     depth: null
     #pose: null
     posecnn: null
@@ -14,9 +14,9 @@ model:
 
 dataset:
   type: 'mc'
-  path: '/home/roit/datasets/mcv5'
+  path: '/home/roit/datasets/mcv21'
   split:
-    path: '/home/roit/datasets/splits/mc/mcv5-sildurs-e-2k-12345-s'
+    path: '/home/roit/datasets/splits/mc/mcv21-sildurs-e-6k-12345'
     train_file: 'train.txt'
     val_file: 'val.txt'
   num_workers: 12
