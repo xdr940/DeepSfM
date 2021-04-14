@@ -1,0 +1,41 @@
+model:
+  mode: "3din" #[encoder,depth,posecnn]
+  load_paths:
+    encoder: '/home/roit/models/DeepSfM/mc/0318_0304/models/weights_29/encoder.pth'
+    depth: '/home/roit/models/DeepSfM/mc/0318_0304/models/weights_29/depth.pth'
+    #pose: null
+    posecnn: null
+  device: 'cuda'
+#  scales: [0,1,2,3]
+#  optimizer_path: null
+metric_mode: "mean"
+dataset:
+  type: 'mc'
+  path: '/home/roit/datasets/mcv5'
+  split:
+    path: '/home/roit/datasets/splits/mc/mcv5-sildurs-e-10k-12345-s'
+#    train_file: 'train.txt'
+#    val_file: 'val.txt'
+    test_file: 'test.txt'
+  num_workers: 12
+  batch_size: 1
+  to_height: 288 #same with feed height
+  to_width: 384
+  full_width: 1024
+  full_height: 768
+
+out_dir_base: '/home/roit/bluep2/test_out'
+
+
+
+feed_width: 384  #"'width' must be a multiple of 32"
+feed_height: 288 #"'height' must be a multiple of 32"
+
+#scales: [0,1,2,3]
+cuda: True
+device: 'cuda'
+
+frame_sides: [-1,0,1]
+
+min_depth: 0.1
+max_depth: 576.0

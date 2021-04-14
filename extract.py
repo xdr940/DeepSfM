@@ -9,32 +9,42 @@ import matplotlib.pyplot as plt
 import cv2
 def MC():
     cp_img=True
-    cp_gt =False
-    dataset = Path("/home/roit/datasets/MC")
-
+    cp_gt =True
+    dataset = Path("/home/roit/datasets/mcv5")
     wk_root = Path('/home/roit/aws/aprojects/xdr94_mono2')
-    root = wk_root / 'splits/mc/test_files.txt'
+    lines = '/home/roit/datasets/splits/mc/mcv5-sildurs-e-10k-12345-s/test.txt'
+    dump_base = Path('/home/roit/bluep2/test_out/mc/mcv5-sildurs-e-10k-12345-s')
+    shader = 'sildurs-e'
+    dump_base.mkdir_p()
+
+
+
+
+
+
 
     img_dump = wk_root/'color'
     img_dump.mkdir_p()
 
     gt_dump = wk_root/'test_files'
     gt_dump.mkdir_p()
+    (dump_base / 'img').mkdir_p()
+    (dump_base / 'depth').mkdir_p()
 
 
-    files = readlines(root)
+    files = readlines(lines)
 
     for item in tqdm(files):
-        block,p,color,frame = item.split('/')
         if cp_img:
-            img_p = dataset/block/p/'color'/frame+'.png'
-            out_name = item.replace('/','_')+'.png'
-            cmd = 'cp '+img_p+'  '+img_dump/out_name
+            img_p = dataset/item
+            out_name = item.replace('/','_')
+            cmd = 'cp '+img_p+'  '+dump_base/'img'/out_name
             os.system(cmd)
         if cp_gt:
-            gt_p =  dataset/block/p/'depth'/frame+'.png'
-            out_name = item.replace('/', '_') + '.png'
-            cmd = 'cp ' + gt_p + '  ' + gt_dump / out_name
+            gt_p = dataset / item
+            gt_p =gt_p.replace(shader,'depth')
+            out_name = item.replace('/', '_')
+            cmd = 'cp ' + gt_p + '  ' + dump_base / 'depth' / out_name
             os.system(cmd)
 
 

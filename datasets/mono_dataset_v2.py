@@ -81,6 +81,8 @@ class MonoDataset(data.Dataset):
                                                interpolation=self.interp)
 
         self.load_depth = self.check_depth()
+        if mode == "prediction":
+            self.load_depth=False
         #self.load_depth = False
 
 

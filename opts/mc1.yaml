@@ -1,5 +1,5 @@
 model:
-  mode: ['3din','3din'] #[encoder,depth,posecnn]
+  mode: ['1in','3din'] #[encoder,depth,posecnn]
   framework: 'sfmlearner' #rebuild #sfmlearner
   load_paths:
     encoder: '/home/roit/models/torchvision/official/resnet18-5c106cde.pth'
