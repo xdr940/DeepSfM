@@ -2,6 +2,9 @@
 from path import Path
 import re
 from utils.official import readlines
+from utils.img_process import COLORMAPS
+from matplotlib import cm
+
 import os
 from tqdm import  tqdm
 import numpy as np
@@ -15,6 +18,10 @@ def MC():
     lines = '/home/roit/datasets/splits/mc/mcv5-sildurs-e-10k-12345-s/test.txt'
     dump_base = Path('/home/roit/bluep2/test_out/mc/mcv5-sildurs-e-10k-12345-s')
     shader = 'sildurs-e'
+
+    save_cmap='magma'
+
+
     dump_base.mkdir_p()
 
 
@@ -48,7 +55,21 @@ def MC():
             os.system(cmd)
 
 
+def chg_cmap():
+    pass
+    dir = Path('/home/roit/bluep2/test_out/data_for_paper/1d3dmcv2')
+    files = dir.files()
+    for file in tqdm(files):
+        if '.png' not in file:
+            continue
+        img = plt.imread(file)
+        img = np.mean(img[:, :], axis=2)
+        # img= 1-img
+        # img = cv2.resize(img,(388,288))
+        plt.imsave(file,img,cmap='magma')
+        # plt.imsave(file,img)
 
+    print('ok')
 
 def kitti():
     dataset = Path("/media/roit/970evo/home/roit/datasets/kitti")
@@ -124,7 +145,8 @@ def extract_kitti_gt():
 
 
 if __name__ == '__main__':
-    MC()
+    # MC()
+    chg_cmap()
     #extract_vsd_img()
     #extract_kitti_gt()
     #kitti()

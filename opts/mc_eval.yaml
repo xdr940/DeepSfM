@@ -1,8 +1,8 @@
 model:
   mode: "1in" #[encoder,depth,posecnn]
   load_paths:
-    encoder: '/home/roit/models/DeepSfM/mc/0411_0108/models/weights_29/encoder.pth'
-    depth: '/home/roit/models/DeepSfM/mc/0411_0108/models/weights_29/depth.pth'
+    encoder: '/home/roit/models/DeepSfM/mc/0410_1345/models/weights_29/encoder.pth'
+    depth: '/home/roit/models/DeepSfM/mc/0410_1345/models/weights_29/depth.pth'
     #pose: null
     posecnn: null
   device: 'cuda'
@@ -11,9 +11,9 @@ model:
 metric_mode: "mean"
 dataset:
   type: 'mc'
-  path: '/home/roit/datasets/mcv31'
+  path: '/home/roit/datasets/mcv5'
   split:
-    path: '/home/roit/datasets/splits/mc/mcv31-sildurs-e-6k-12345'
+    path: '/home/roit/datasets/splits/mc/mcv5-sildurs-h-2k-12345-s'
     train_file: 'train.txt'
     val_file: 'val.txt'
     test_file: 'val.txt'

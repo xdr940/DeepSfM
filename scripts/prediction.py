@@ -164,7 +164,7 @@ def prediction(opts):
     model_path = opts['model']['load_paths']
     model_mode = opts['model']['mode']
     frame_sides = opts['frame_sides']
-    out_dir_base = opts['out_dir_base']
+    out_dir_base = Path(opts['out_dir_base'])
 
     # frame_prior,frame_now,frame_next =  opts['frame_sides']
     encoder,decoder = model_init(model_path,mode=model_mode)
@@ -215,8 +215,10 @@ def prediction(opts):
                             drop_last=False)
     out_shows=[]
 
-
-    out_dir = out_dir_base/data_path.stem
+    if opts['out_dir']:
+        out_dir = out_dir_base/opts['out_dir']
+    else:
+        out_dir = out_dir_base/data_path.stem
     out_dir.mkdir_p()
     for data in tqdm(dataloader):
 
@@ -244,7 +246,7 @@ def prediction(opts):
 
         depth_name = file_names[idx].replace('/', '_').replace('.png','depth')
         idx += 1
-        plt.imsave(out_dir/depth_name+'{}'.format('.png'),item[0])
+        plt.imsave(out_dir/depth_name+'{}'.format('.png'),item[0],cmap='magma')
 
 
 

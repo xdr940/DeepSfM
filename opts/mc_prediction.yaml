@@ -1,8 +1,11 @@
+frame_sides: [-1,0,1]
+
+out_dir: '0410_1345-mcv5'
 model:
-  mode: "3din" #[encoder,depth,posecnn]
+  mode: "1in" #[encoder,depth,posecnn]
   load_paths:
-    encoder: '/home/roit/models/DeepSfM/mc/0318_0304/models/weights_29/encoder.pth'
-    depth: '/home/roit/models/DeepSfM/mc/0318_0304/models/weights_29/depth.pth'
+    encoder: '/home/roit/models/DeepSfM/mc/0410_1345/models/weights_29/encoder.pth'
+    depth: '/home/roit/models/DeepSfM/mc/0410_1345/models/weights_29/depth.pth'
     #pose: null
     posecnn: null
   device: 'cuda'
@@ -24,8 +27,8 @@ dataset:
   full_width: 1024
   full_height: 768
 
-out_dir_base: '/home/roit/bluep2/test_out'
-
+out_dir_base: '/home/roit/bluep2/test_out/mc/apr'
+save_cmap: 'magma'
 
 
 feed_width: 384  #"'width' must be a multiple of 32"
@@ -35,7 +38,6 @@ feed_height: 288 #"'height' must be a multiple of 32"
 cuda: True
 device: 'cuda'
 
-frame_sides: [-1,0,1]
 
 min_depth: 0.1
 max_depth: 576.0
