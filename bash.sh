@@ -2,7 +2,7 @@
 
 
 echo mc1.yaml
-python scripts/train.py --settings /home/roit/aws/aprojects/DeepSfMLearner/opts/mc1.yaml
+python scripts/train.py --settings /home/roit/aws/aprojects/DeepSfMLearner/opts/kitti2.yaml
 clear
 
 echo mc2.yaml

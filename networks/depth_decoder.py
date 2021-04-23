@@ -139,7 +139,7 @@ class DepthDecoder2(nn.Module):
             return ret[0]
 
 def getDepthDecoder(model_mode=1,mode='train'):
-    if model_mode ==1:
+    if model_mode =='default':
         model = DepthDecoder2(
             num_ch_enc=[64,64,128,256,512],
             scales=[0,1,2,3],

@@ -55,8 +55,8 @@ class ResnetEncoder(nn.Module):
 
     def forward(self, input_image):
         self.features = []
-        x = (input_image - 0.45) / 0.225
-        x = self.conv1(x)
+        input_image = (input_image - 0.45) / 0.225
+        x = self.conv1(input_image)
         x = self.bn1(x)
         self.features.append(self.relu(x))
         self.features.append(self.layer1(self.maxpool(self.features[-1])))
@@ -101,7 +101,7 @@ class Res3DEncoder0(models.ResNet):
 
     def forward(self, input_image):
         self.features = []
-       # x = (input_image - 0.45) / 0.225
+       # input_image = (input_image - 0.45) / 0.225
         x = self.conv1(input_image)
         x = self.bn1(x)
         x = self.relu(x)

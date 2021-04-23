@@ -105,17 +105,17 @@ class PoseC3D(nn.Module):
         return out
 
 
-def getPoseNet(mode):
-    if mode=="3in":
+def getPoseCNN(mode):
+    if mode=="3in-cnn":
         return PoseCNN(3)
-    elif mode == "3din":
+    elif mode == "3din-cnn":
         return PoseC3D(3)
-    elif mode =='2in':
+    elif mode =='2in-cnn':
         return PoseCNN(2)
 
 
 if __name__ == '__main__':
-    network = getPoseNet("3d-in")
+    network = getPoseCNN("3d-in")
     example_inputs = torch.rand(8, 3,3, 640, 192)
     out = network(example_inputs)
     print(out.shape)

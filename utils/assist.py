@@ -4,6 +4,35 @@ from path import Path
 import torch.optim as optim
 import torch
 
+
+def reframe(mode,inputs,frame_sides):
+
+    if mode =='3din':
+        colors = torch.cat([inputs["color_aug",frame_sides[0], 0].unsqueeze(dim=2),
+                                inputs["color_aug", frame_sides[1], 0].unsqueeze(dim=2),
+                                inputs["color_aug",frame_sides[2], 0].unsqueeze(dim=2)],
+                               dim=2)
+
+        return colors
+    elif mode =='3in':
+        colors = torch.cat([inputs["color_aug",frame_sides[0], 0],
+                                     inputs["color_aug", frame_sides[0], 0],
+                                     inputs["color_aug", frame_sides[0], 0]],
+                                    dim=1)
+        return colors
+    elif mode =='2in':
+        color_prior = torch.cat([inputs["color_aug", frame_sides[0], 0],
+                               inputs["color_aug", frame_sides[1], 0],
+                               ],
+                              dim=1)
+        color_next = torch.cat([inputs["color_aug", frame_sides[1], 0],
+                               inputs["color_aug", frame_sides[2], 0],
+                               ],
+                              dim=1)
+        return color_prior,color_next
+    elif mode =='1in':
+        return  inputs["color_aug", 0, 0]
+
 def model_init(model_opt):
     # models
     # details
@@ -18,15 +47,29 @@ def model_init(model_opt):
     model_mode = model_opt['mode']
     load_paths = model_opt['load_paths']
     optimizer_path = model_opt['optimizer_path']
+    framework = model_opt['framework']
 
-    # encoder
-    models["encoder"] = networks.getEncoder(model_mode[0])
-    models["depth"] = networks.getDepthDecoder()
+    if framework =='spv':
+        pass
+    elif framework =='shared':
+        models["encoder"] = networks.getEncoder(model_mode[0])
+        models["depth"] = networks.getDepthDecoder(model_mode[1])
+        models["pose"] = networks.getPoseDecoder(model_mode[3])
 
-    if model_mode[1] == "fin-2out":
-        models["pose"] = networks.getPoseDecoder("fin-2out")
-    else:
-        models["pose"] = networks.getPoseNet(model_mode[1])
+
+    elif framework == 'ind':
+        models["depth_encoder"] = networks.getEncoder(model_mode[0])
+        models["depth"] = networks.getDepthDecoder(model_mode[1])
+        if model_mode[2] not in ['3din','3in','2in']:
+            models["pose"] = networks.getPoseCNN(model_mode[2])
+        else:
+
+            models["pose_encoder"] = networks.getEncoder(model_mode[2])
+            models["pose"] = networks.getPoseDecoder(model_mode[3])
+
+        # encoder
+
+
 
     # model device
     for k, v in models.items():

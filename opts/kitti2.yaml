@@ -1,8 +1,9 @@
 model:
-  mode: ['1in','3din'] #[encoder,depth,posecnn]
-  framework: 'sfmlearner' #rebuild #sfmlearner
+  framework: 'shared' #shared,ind,spv,rebuild
+  mode: ['3din','default','3din','fin-2out'] #[encoder,depth,posecnn]
   load_paths:
-    encoder: '/home/roit/models/torchvision/official/resnet18-5c106cde.pth'
+#    encoder: '/home/roit/models/torchvision/official/resnet18-5c106cde.pth'
+    encoder: null
     depth: null
     #pose: null
     posecnn: null
@@ -20,7 +21,7 @@ dataset:
     train_file: 'train.txt'
     val_file: 'val.txt'
   num_workers: 12
-  batch_size: 12
+  batch_size: 8
   to_height: 192 #same with feed height
   to_width: 640
   full_width: 1242
@@ -37,7 +38,7 @@ device: 'cuda'
 frame_sides: [-1,0,1]
 
 yaml_file: /home/roit/aws/aprojects/DeepSfMLearner/opts/mc.yaml
-log_dir: '/home/roit/models/DeepSfM/mc'
+log_dir: '/home/roit/models/DeepSfM/kitti'
 tb_log_frequency: 12
 epoch: 20
 model_first_save: 15

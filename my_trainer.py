@@ -23,7 +23,7 @@ from datasets import MCDataset,VSDataset
 from datasets import CustomMonoDataset
 import networks
 from utils.logger import TermLogger
-from utils.assist import model_init
+from utils.assist import model_init,reframe
 import torch
 
 
@@ -456,75 +456,48 @@ class Trainer:
 
         outputs={}
 
-        #depth input cat
-        color_3din=None
-        color_1in=None
-        color_3in=None
-        depth_in = None
-        if model_mode[0]=="1in":#0:1614,1:1608
-            color_1in = inputs["color_aug", 0, 0]
-            depth_in = color_1in
-        elif model_mode[0] =="3din":
-            #3d-in
-            color_3din = torch.cat([inputs["color_aug", self.frame_prior, 0].unsqueeze(dim=2),
-                                   inputs["color_aug", self.frame_now, 0].unsqueeze(dim=2),
-                                   inputs["color_aug", self.frame_next, 0].unsqueeze(dim=2)],
-                                  dim=2)
-            depth_in = color_3din
+
         #depth pass
-        features = self.models["encoder"](depth_in)#0:1611,1:1676
+        colors = reframe(mode=model_mode[0],inputs=inputs,frame_sides=self.frame_sides)
+
+        if framework == 'shared':
+            features = self.models["encoder"](colors)#0:1611,1:1676
+
+        elif framework == 'ind':
+            features = self.models["depth_encoder"](colors)#0:1611,1:1676
+
         features = tuple(features)#0:2522, 1:5232
         disp = self.models["depth"](*features)
+
+
         outputs[("disp", 0, 0)] = disp[0]#0:3808
         outputs[("disp", 0, 1)] = disp[1]
         outputs[("disp", 0, 2)] = disp[2]
         outputs[("disp", 0, 3)] = disp[3]
 
-        #pose input cat
-        if framework=='sfmlearner':
-            if model_mode[1]=='2in':
-                color_2in = torch.cat([inputs["color_aug", self.frame_prior, 0],
-                                     inputs["color_aug", self.frame_now, 0],
-                                     ],
-                                    dim=1)
-                color_2in_ = torch.cat([inputs["color_aug", self.frame_now, 0],
-                                     inputs["color_aug", self.frame_next, 0],
-                                     ],
-                                    dim=1)
-                pose1 = self.models['pose'](color_2in)
-                pose2 = self.models['pose'](color_2in_)
-                poses = torch.cat([pose1,pose2],dim=1)
 
-            if model_mode[1] =="3in":
-                color_3in = torch.cat([inputs["color_aug",self.frame_prior, 0],
-                                     inputs["color_aug", self.frame_now, 0],
-                                     inputs["color_aug", self.frame_next, 0]],
-                                    dim=1)
-
-                pose_in = color_3in
-
-
-            elif model_mode[1]=="3din":
-                if color_3din!=None:
-                    pass
-                else:
-                    color_3din = torch.cat([inputs["color_aug", self.frame_prior, 0].unsqueeze(dim=2),
-                                         inputs["color_aug", self.frame_now, 0].unsqueeze(dim=2),
-                                         inputs["color_aug", self.frame_next, 0].unsqueeze(dim=2)],
-                                        dim=2)
-
-                pose_in = color_3din
-
-                poses = self.models['pose'](pose_in)
-
-
-            elif model_mode[1] =="fin-2out":
-                poses= self.models['pose'](*features)
+        #pose pass
+        poses=None
+        if framework == 'shared':
+            poses = self.models['pose'](*features)
+        elif framework =='ind':
+            colors = reframe(mode=model_mode[2], inputs=inputs, frame_sides=self.frame_sides)
+            if model_mode[3] =='3dcnn':
+                poses = self.models['pose'](colors)
             else:
-                pass
+                features = self.models['pose_encoder'](colors)
+                poses = self.models['pose'](*features)
 
 
-            #pose pass
+            #
+        elif framework == "spv":
+            losses = self.compute_losses_spv(inputs, outputs)
+
+        elif framework == "rebuild":
+            pass
+
+        if framework in ['shared','ind']:
+                #pose pass
             cam_T_cam = transformation_from_parameters(
                 poses[:, 0,0,:3].unsqueeze(1), poses[:, 0,0,3:].unsqueeze(1), invert=True
             )  # b44
@@ -539,12 +512,7 @@ class Trainer:
             losses = self.compute_losses(inputs, outputs)  # 0:8561
 
 
-        #
-        elif framework=="spv":
-            losses = self.compute_losses_spv(inputs, outputs)
 
-        elif framework=="rebuild":
-            pass
 
         return outputs, losses
 

@@ -32,21 +32,37 @@ outputs #34 dict
 
 
 ### framework modes
+ - shared
+ - ind
+ - spv
+ - rebuild
 
- __Encoder__ 
+### model mode
+ __Encoder(DepthEncoder)__ 
+ model_mode[0]
+ 
 - 1in
 - 3in
 - 3din
 
 __DepthDecoder__
+ model_mode[1]
+
 - None
 
-__PoseDecoder__
-- fin-2out
+__PoseEncoder__[2]
 
-__PoseNet__
-- 3in
-- 3din 
+- 3din
+- c3d
+
+__PoseDecoder__
+ model_mode[3]
+
+- fin-2out 
+- fin-1out
+
+
+
 	
 	
 
