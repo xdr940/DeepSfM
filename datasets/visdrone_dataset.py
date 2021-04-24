@@ -5,7 +5,7 @@ from __future__ import absolute_import, division, print_function
 import numpy as np
 import PIL.Image as pil
 from path import Path
-from datasets.mono_dataset import MonoDataset
+from datasets.mono_dataset_v2 import MonoDataset
 
 
 class VSDataset(MonoDataset):

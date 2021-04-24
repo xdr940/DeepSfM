@@ -184,12 +184,6 @@ def evaluate(opts):
 
 
 
-    # preds_resized=[]
-    # for item in pred_depths:
-    #     pred_resized = cv2.resize(item, (full_width,full_height))
-    #     preds_resized.append(np.expand_dims(pred_resized,axis=0))
-    # preds_resized = np.concatenate(preds_resized,axis=0)
-
 
 
     metrics = []

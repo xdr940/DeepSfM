@@ -32,8 +32,8 @@ class MonoDataset(data.Dataset):
     def __init__(self,
                  data_path,
                  filenames,
-                 height,
-                 width,
+                 height,#feed height
+                 width,#feed width
                  frame_sides,
                  num_scales,
                  mode="train",
@@ -42,7 +42,7 @@ class MonoDataset(data.Dataset):
 
         self.data_path = data_path
         self.filenames = filenames#list , like '2011_09_26/2011_09_26_drive_0001_sync 1 l'
-        self.height = height
+        self.height = height#
         self.width = width
         self.num_scales = num_scales
         self.interp = Image.ANTIALIAS

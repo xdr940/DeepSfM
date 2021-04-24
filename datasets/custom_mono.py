@@ -6,7 +6,16 @@ import os
 import numpy as np
 import PIL.Image as pil
 from path import Path
-from datasets.mono_dataset import MonoDataset
+from datasets.mono_dataset_v2 import MonoDataset
+
+from torch.utils.data import DataLoader
+
+def relpath_split(relpath):
+    relpath = relpath.split('/')
+    scene=relpath[0]
+    frame = relpath[1]
+    frame=frame.replace('.jpg','')
+    return scene,frame
 
 
 class CustomMonoDataset(MonoDataset):
@@ -39,20 +48,19 @@ class CustomMonoDataset(MonoDataset):
         #                   [0, 0, 1, 0],
         #                   [0, 0, 0, 1]], dtype=np.float32)
 
+        self.img_ext = '.jpg'
 
-        self.img_ext='.jpg'
-        #self.depth_ext = '.png'
+    def __get_image_path__(self, line, side):
+        scene,frame = relpath_split(line)
+        reframe = "{:07d}".format(int(frame)+side)
+        line = scene+'/'+reframe+self.img_ext
+        image_path = Path(self.data_path)/ line
+        return image_path
 
-        self.MaxDis = 1.
-        self.MinDis = 0
 
 
-    def check_depth(self):
-
-       return False
-
-    def get_color(self, folder, frame_index, side, do_flip):
-        path =self.get_image_path(folder, frame_index)
+    def get_color(self, line, side, do_flip):
+        path = self.__get_image_path__(line, side)
         color = self.loader(path)
 
         if do_flip:
@@ -60,14 +68,11 @@ class CustomMonoDataset(MonoDataset):
 
         return color
 
+    def check_depth(self):
 
-    def get_image_path(self, folder, frame_index):
-        seq,frame = folder.split('/')
-        frame = int(frame)
+        return False
 
-        f_str = "{:04d}{}".format(frame_index+frame, self.img_ext)
-        image_path = Path(self.data_path)/ seq/"{}".format(f_str)
-        return image_path
+
 
 
 
@@ -85,3 +90,20 @@ class CustomMonoVoDataset(MonoDataset):
             "image_{}".format(self.side_map[side]),
             f_str)
         return image_path
+
+
+if __name__ == '__main__':
+    dataset = CustomMonoDataset(
+        data_path='/home/roit/datasets/VSD',
+        filenames=['uav0000077_00000_s/0000005.jpg','uav0000077_00000_s/0000022.jpg','uav0000077_00000_s/0000033.jpg'],
+        height=320,
+        width=384,
+        frame_sides = [-1,0,1],
+        num_scales=4,
+        mode="train",
+        img_ext='.jpg'
+    )
+    dataloader =DataLoader(dataset)
+
+    for item in dataloader:
+        pass

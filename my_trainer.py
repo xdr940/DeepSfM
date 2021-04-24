@@ -81,8 +81,8 @@ class Trainer:
             datasets_dict = {"kitti": KITTIRAWDataset,
                              #"kitti_odom": KITTIOdomDataset,
                              "mc": MCDataset,
-                             "custom_mono": CustomMonoDataset,
-                             "visdrone": VSDataset}
+                             "custom_mono": CustomMonoDataset}
+
             if dataset_opt['type'] in datasets_dict.keys():
                 dataset = datasets_dict[dataset_opt['type']]  # 选择建立哪个类，这里kitti，返回构造函数句柄
             else:
@@ -115,8 +115,8 @@ class Trainer:
                 width=feed_width,
                 frame_sides=self.frame_sides,#kitti[0,-1,1],mc[-1,0,1]
                 num_scales = 4,
-                mode="train",
-                img_ext='.png'
+                mode="train"
+                # img_ext='.png'
             )
             train_loader = DataLoader(  # train_datasets:KITTIRAWDataset
                 dataset=train_dataset,
@@ -604,7 +604,7 @@ class Trainer:
             for k, v in losses.items():
                 if k in log_loss:
                     writer.add_scalar("{}".format(k), float(v), self.step)
-        if metrics!=None:
+        if metrics!=None and   "depth_gt" in inputs.keys():
             for k,v in metrics.items():
                 if k in log_metrics:
                     if k in ['a1','a2','a3']:
@@ -689,12 +689,12 @@ class Trainer:
                 if "depth_gt" in inputs:
                     #train_set validate
                     self.metrics.update(self.compute_depth_metrics(inputs, outputs,dataset_type=self.dataset_type))
-                    self.tb_log(mode='train',
-                                metrics=self.metrics,
-                                inputs=inputs,
-                                outputs=outputs,
-                                losses=losses
-                                )
+                self.tb_log(mode='train',
+                            metrics=self.metrics,
+                            inputs=inputs,
+                            outputs=outputs,
+                            losses=losses
+                            )
 
 
                 self.val()
