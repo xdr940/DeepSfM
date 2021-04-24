@@ -91,16 +91,19 @@ def model_init(model_opt):
     print('--> load models:')
 
     # load models
-    for name, path in load_paths.items():
-        path = load_paths[name]
-        if name in models.keys() and path:
+    for name,model in models.items():
+        if name in list(load_paths.keys()):
+            path = load_paths[name]
+            if not path:
+                continue
             model_dict = models[name].state_dict()
             pretrained_dict = torch.load(path)
             pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
             model_dict.update(pretrained_dict)
             models[name].load_state_dict(model_dict)
-        print("\t{}:{}".format(name, path))
-        # loading adam state
+            print("\t{}:{}".format(name, path))
+
+
 
     if optimizer_path:
         optimizer_path = Path(optimizer_path)
