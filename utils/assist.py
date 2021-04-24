@@ -101,7 +101,7 @@ def model_init(model_opt):
             pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
             model_dict.update(pretrained_dict)
             models[name].load_state_dict(model_dict)
-            print("\t{}:{}".format(name, path))
+            print(" ->{}:{}".format(name, path))
 
 
 

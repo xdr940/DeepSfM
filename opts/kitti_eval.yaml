@@ -1,8 +1,7 @@
 frame_sides: [-1,0,1]
 #frame_sides: [0]
 model:
-  mode: "3din" #[encoder,depth,posecnn]
-#  mode: "1in"
+  encoder_mode: "3din" #[encoder,depth,posecnn]
   load_paths:
     encoder: '/home/roit/models/DeepSfM/kitti/0324_2244/models/weights_19/encoder.pth'#1in
 #    encoder: '/home/roit/models/DeepSfM/kitti/0323_2159/models/weights_19/encoder.pth'#3din
@@ -11,7 +10,6 @@ model:
 #    depth: '/home/roit/models/DeepSfM/kitti/0323_2159/models/weights_19/depth.pth'#3din
     #    depth: '/home/roit/models/monodepth2_official/mono_640x192/depth.pth'
     #pose: null
-    posecnn: null
   device: 'cuda'
   optimizer_path: null
 metric_mode: "mean"

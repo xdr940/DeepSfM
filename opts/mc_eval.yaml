@@ -1,10 +1,8 @@
 model:
-  mode: "1in" #[encoder,depth,posecnn]
+  encoder_mode: "1in" #[encoder,depth,posecnn]
   load_paths:
     encoder: '/home/roit/models/DeepSfM/mc/0410_1345/models/weights_29/encoder.pth'
     depth: '/home/roit/models/DeepSfM/mc/0410_1345/models/weights_29/depth.pth'
-    #pose: null
-    posecnn: null
   device: 'cuda'
   scales: [0,1,2,3]
   optimizer_path: null

@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 from datasets.mc_dataset import relpath_split
 
 from networks.encoders import getEncoder
-from networks.decoders import getDepthDecoder
+from networks.depth_decoder import getDepthDecoder
 
 from networks.layers import disp2depth,disp_to_depth
 from utils.official import readlines
@@ -18,37 +18,10 @@ from tqdm import  tqdm
 from path import Path
 from utils.yaml_wrapper import YamlHandler
 from utils.official import compute_errors
+from utils.assist import reframe
 import matplotlib.pyplot as plt
 
 cv2.setNumThreads(0)  # This speeds up evaluation 5x on our unix systems (OpenCV 3.3.1)
-
-
-
-# Models which were trained with stereo supervision were trained with a nominal
-# baseline of 0.1 units. The KITTI rig has a baseline of 54cm. Therefore,
-# to convert our stereo predictions to real-world scale we multiply our depths by 5.4.
-
-#
-# def compute_errors(gt, pred):
-#     """Computation of error metrics between predicted and ground truth depths
-#     input HxW,HxW
-#     """
-#     thresh = np.maximum((gt / pred), (pred / gt))
-#     a1 = (thresh < 1.25     ).mean()
-#     a2 = (thresh < 1.25 ** 2).mean()
-#     a3 = (thresh < 1.25 ** 3).mean()
-#
-#     rmse = (gt - pred) ** 2
-#     rmse = np.sqrt(rmse.mean())
-#
-#     rmse_log = (np.log(gt) - np.log(pred)) ** 2
-#     rmse_log = np.sqrt(rmse_log.mean())
-#
-#     abs_rel = np.mean(np.abs(gt - pred) / gt)
-#
-#     sq_rel = np.mean(((gt - pred) ** 2) / gt)
-#
-#     return abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3
 
 
 
@@ -80,7 +53,7 @@ def model_init(model_path,mode):
 
     #model init
     encoder = getEncoder(model_mode=mode)
-    depth_decoder = getDepthDecoder(model_mode=1,mode='test')
+    depth_decoder = getDepthDecoder(model_mode='default',mode='test')
 
     #encoder dict updt
     encoder_dict = torch.load(encoder_path)
@@ -106,33 +79,7 @@ def model_init(model_path,mode):
     depth_decoder.eval()
     return encoder,depth_decoder
 
-def dataset_init():
-    # dataloader
 
-    pass
-def input_frames(data,mode,frame_sides):
-    if mode=="3din":
-        input = torch.cat([data["color", frame_sides[0], 0].unsqueeze(dim=2),
-                             data["color", frame_sides[1], 0].unsqueeze(dim=2),
-                             data["color", frame_sides[2], 0].unsqueeze(dim=2)],
-                            dim=2)
-
-    elif mode =='3in':
-        input = torch.cat([data["color", frame_sides[0], 0],
-                             data["color", frame_sides[1], 0],
-                             data["color", frame_sides[2], 0]],
-                            dim=1)
-
-    elif mode=='1in':
-        input = data["color", 0, 0]
-
-
-
-
-    return input.cuda()
-
-def post_press(out_put):
-    pass
 
 
 @torch.no_grad()
@@ -152,7 +99,6 @@ def evaluate(opts):
     full_height = opts['dataset']['full_height']
     metric_mode = opts['metric_mode']
 
-    framework_mode = opts['model']['mode']
 
 
     #这里的度量信息是强行将gt里的值都压缩到和scanner一样的量程， 这样会让值尽量接近度量值
@@ -162,10 +108,10 @@ def evaluate(opts):
     data_path = Path(opts['dataset']['path'])
     lines = Path(opts['dataset']['split']['path'])/opts['dataset']['split']['test_file']
     model_path = opts['model']['load_paths']
-    model_mode = opts['model']['mode']
+    encoder_mode = opts['model']['encoder_mode']
     frame_sides = opts['frame_sides']
     # frame_prior,frame_now,frame_next =  opts['frame_sides']
-    encoder,decoder = model_init(model_path,mode=model_mode)
+    encoder,decoder = model_init(model_path,mode=encoder_mode)
     file_names = readlines(lines)
 
     print('-> dataset_path:{}'.format(data_path))
@@ -209,8 +155,8 @@ def evaluate(opts):
     for data in tqdm(dataloader):
 
 
-        input_color = input_frames(data,mode=framework_mode,frame_sides=frame_sides)
-
+        input_color = reframe(encoder_mode,data,frame_sides=frame_sides)
+        input_color = input_color.cuda()
 
 
         features = encoder(input_color)
