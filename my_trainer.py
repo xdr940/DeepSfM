@@ -224,8 +224,8 @@ class Trainer:
         self.project_3d = {}
 
         for scale in options['scales']:
-            h = options['feed_height'] // (2 ** scale)
-            w = options['feed_width'] // (2 ** scale)
+            h = options['dataset']['to_height'] // (2 ** scale)
+            w = options['dataset']['to_width'] // (2 ** scale)
 
             self.layers['back_proj_depth'][scale] = BackprojectDepth(options['dataset']['batch_size'], h, w)
             self.layers['back_proj_depth'][scale].to(self.device)
