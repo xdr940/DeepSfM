@@ -155,7 +155,7 @@ def evaluate(opts):
     for data in tqdm(dataloader):
 
 
-        input_color = reframe(encoder_mode,data,frame_sides=frame_sides)
+        input_color = reframe(encoder_mode,data,frame_sides=frame_sides,key='color')
         input_color = input_color.cuda()
 
 

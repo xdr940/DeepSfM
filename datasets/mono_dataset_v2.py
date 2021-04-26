@@ -151,8 +151,7 @@ class MonoDataset(data.Dataset):
             except:
                 # os.system('clear')
                 # print(split_line)
-                print('frame load failed')
-                exit(-1)
+                print('frame load failed:{},{}'.format(split_line,side))
 
         # adjusting intrinsics to match each scale in the pyramid
 

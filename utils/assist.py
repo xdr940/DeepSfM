@@ -5,33 +5,33 @@ import torch.optim as optim
 import torch
 
 
-def reframe(mode,inputs,frame_sides):
+def reframe(mode,inputs,frame_sides,key='color_aug'):
 
     if mode =='3din':
-        colors = torch.cat([inputs["color_aug",frame_sides[0], 0].unsqueeze(dim=2),
-                                inputs["color_aug", frame_sides[1], 0].unsqueeze(dim=2),
-                                inputs["color_aug",frame_sides[2], 0].unsqueeze(dim=2)],
+        colors = torch.cat([inputs[key,frame_sides[0], 0].unsqueeze(dim=2),
+                                inputs[key, frame_sides[1], 0].unsqueeze(dim=2),
+                                inputs[key,frame_sides[2], 0].unsqueeze(dim=2)],
                                dim=2)
 
         return colors
     elif mode =='3in':
-        colors = torch.cat([inputs["color_aug",frame_sides[0], 0],
-                                     inputs["color_aug", frame_sides[0], 0],
-                                     inputs["color_aug", frame_sides[0], 0]],
+        colors = torch.cat([inputs[key,frame_sides[0], 0],
+                                     inputs[key, frame_sides[0], 0],
+                                     inputs[key, frame_sides[0], 0]],
                                     dim=1)
         return colors
     elif mode =='2in':
-        color_prior = torch.cat([inputs["color_aug", frame_sides[0], 0],
-                               inputs["color_aug", frame_sides[1], 0],
+        color_prior = torch.cat([inputs[key, frame_sides[0], 0],
+                               inputs[key, frame_sides[1], 0],
                                ],
                               dim=1)
-        color_next = torch.cat([inputs["color_aug", frame_sides[1], 0],
-                               inputs["color_aug", frame_sides[2], 0],
+        color_next = torch.cat([inputs[key, frame_sides[1], 0],
+                               inputs[key, frame_sides[2], 0],
                                ],
                               dim=1)
         return color_prior,color_next
     elif mode =='1in':
-        return  inputs["color_aug", 0, 0]
+        return  inputs[key, 0, 0]
 
 def model_init(model_opt):
     # models

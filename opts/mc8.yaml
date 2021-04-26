@@ -1,5 +1,5 @@
 model:
-  framework: 'ind' #shared,ind,spv,rebuild
+  framework: 'shared' #shared,ind,spv,rebuild
   mode: ['3din','default','3din','fin-2out'] #[encoder,depth,posecnn]
   load_paths:
 #    depth_encoder: '/home/roit/models/torchvision/official/resnet18-5c106cde.pth'

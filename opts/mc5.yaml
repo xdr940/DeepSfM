@@ -1,6 +1,6 @@
 model:
   framework: 'ind' #shared,ind,spv,rebuild
-  mode: ['1in','default','3din','fin-2out'] #[encoder,depth,posecnn]
+  mode: ['3din','default','3din','fin-2out'] #[encoder,depth,posecnn]
   load_paths:
 #    depth_encoder: '/home/roit/models/torchvision/official/resnet18-5c106cde.pth'
 #    pose_encoder: '/home/roit/models/torchvision/official/resnet18-5c106cde.pth'
@@ -19,20 +19,18 @@ model:
 
 dataset:
   type: 'mc'
-  path: '/home/roit/datasets/mc'
+  path: '/home/roit/datasets/mcv5'
   split:
-    path: '/home/roit/datasets/splits/mc/mcv5-9k-2k-12345'
+    path: '/home/roit/datasets/splits/mc/mcv5-rain-2k-12345'
     train_file: 'train.txt'
     val_file: 'val.txt'
   num_workers: 12
   batch_size: 8
   to_height: 288 #same with feed height
   to_width: 384
-  full_width: null
-  full_height: null
+  full_width: 1024
+  full_height: 768
 
-feed_width: 384  #"'width' must be a multiple of 32"
-feed_height: 256 #"'height' must be a multiple of 32"
 
 scales: [0,1,2,3]
 disparity_smoothness: 0.1 #set manual

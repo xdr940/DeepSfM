@@ -21,7 +21,7 @@ dataset:
   type: 'mc'
   path: '/home/roit/datasets/mcv5'
   split:
-    path: '/home/roit/datasets/splits/mc/mcv5-9k-2k-12345'
+    path: '/home/roit/datasets/splits/mc/mcv5-sildurs-e-2k-12345'
     train_file: 'train.txt'
     val_file: 'val.txt'
   num_workers: 12

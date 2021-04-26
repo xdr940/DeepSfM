@@ -1,6 +1,6 @@
 model:
   framework: 'ind' #shared,ind,spv,rebuild
-  mode: ['1in','default','3din','fin-2out'] #[encoder,depth,posecnn]
+  mode: ['3din','default','3din','fin-2out'] #[encoder,depth,posecnn]
   load_paths:
 #    depth_encoder: '/home/roit/models/torchvision/official/resnet18-5c106cde.pth'
 #    pose_encoder: '/home/roit/models/torchvision/official/resnet18-5c106cde.pth'
@@ -21,7 +21,7 @@ dataset:
   type: 'mc'
   path: '/home/roit/datasets/mcv5'
   split:
-    path: '/home/roit/datasets/splits/mc/mcv5-12k-2k-12345'
+    path: '/home/roit/datasets/splits/mc/mcv5-sildurs-e-2k-12345'
     train_file: 'train.txt'
     val_file: 'val.txt'
   num_workers: 12

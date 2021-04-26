@@ -293,10 +293,8 @@ class Trainer:
             reprojection_loss = reprojection_losses
 
             # add random numbers to break ties# 花书p149 向输入添加方差极小的噪声等价于 对权重施加范数惩罚
-            identity_reprojection_loss += torch.randn(
-                identity_reprojection_loss.shape).cuda() * 0.00001
-
-            erro_maps = torch.cat((identity_reprojection_loss, reprojection_loss), dim=1)  # b4hw
+            identity_reprojection_loss += torch.randn(identity_reprojection_loss.shape).cuda() * 0.00001
+            # erro_maps = torch.cat((identity_reprojection_loss, reprojection_loss), dim=1)  # b4hw
 
             # --------------------------------------------------------------
             map_34, idxs_1 = torch.min(reprojection_loss, dim=1)# w.o identical mask
@@ -667,8 +665,11 @@ class Trainer:
         for batch_idx, inputs in enumerate(self.train_loader):
             before_op_time = time.time()
             #model forwardpass
-            outputs, losses = self.batch_process(self.model_mode,self.framework,inputs)#
-
+            try:
+                outputs, losses = self.batch_process(self.model_mode,self.framework,inputs)#
+            except:
+                print('->batch process error')
+                continue
             self.model_optimizer.zero_grad()
             losses["loss"].backward()
             self.model_optimizer.step()
