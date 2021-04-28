@@ -29,6 +29,15 @@
 |a|a|a|
 |---|---|---|
 |0424-1941|ind,['1in','default','3din','fin-2out']|null->vsd|
+|0425_1511|ind,['1in','default','3din','fin-2out']|imgnt->mn->vsd|
+|0425_0950|~|imgnt->vsd|
+|0426_1721|ind,['1in','default','3din','fin-2out']|null->vsd-s|
+|0426_2002|ind,['1in','default','3din','fin-2out']|imgnt->vsd-s|
+|0426_2244|ind,['1in','default','3din','fin-2out']|monokitti->vsd-s|
+|0427_0125|ind,['1in','default','3din','fin-2out']|MN->vsd-s|
+|0427_1031|shared,['3din','default','3din','fin-2out']|null->vsd-s|
+|0427_1311|shared,|imgnt->vsd|
+
 
 
 不同光照条件

@@ -1,16 +1,10 @@
-frame_sides: [-1,0,1]
-#frame_sides: [0]
 model:
-  encoder_mode: "3din" #[encoder,depth,posecnn]
+  encoder_mode: "1in" #[encoder,depth,posecnn]
   load_paths:
-    encoder: '/home/roit/models/DeepSfM/kitti/0324_2244/models/weights_19/encoder.pth'#1in
-#    encoder: '/home/roit/models/DeepSfM/kitti/0323_2159/models/weights_19/encoder.pth'#3din
-    #    encoder: '/home/roit/models/monodepth2_official/mono_640x192/encoder.pth'
-    depth: '/home/roit/models/DeepSfM/kitti/0324_2244/models/weights_19/depth.pth'#1in
-#    depth: '/home/roit/models/DeepSfM/kitti/0323_2159/models/weights_19/depth.pth'#3din
-    #    depth: '/home/roit/models/monodepth2_official/mono_640x192/depth.pth'
-    #pose: null
+    encoder: '/home/roit/models/DeepSfM/gnz-kitti/0427_2137/models/weights_8/depth_encoder.pth'
+    depth: '/home/roit/models/DeepSfM/gnz-kitti/0427_2137/models/weights_8/depth.pth'
   device: 'cuda'
+  scales: [0,1,2,3]
   optimizer_path: null
 metric_mode: "mean"
 dataset:
@@ -20,9 +14,9 @@ dataset:
     path: '/home/roit/datasets/splits/kitti/eigen_zhou_std'
     train_file: 'train.txt'
     val_file: 'val.txt'
-    test_file: 'wo_test.txt'
-  num_workers: 16
-  batch_size: 16
+    test_file: 'test.txt'
+  num_workers: 12
+  batch_size: 12
   to_height: 192 #same with feed height
   to_width: 640
   full_width: 1242
@@ -31,8 +25,11 @@ dataset:
 feed_width: 640  #"'width' must be a multiple of 32"
 feed_height: 192 #"'height' must be a multiple of 32"
 
+scales: [0,1,2,3]
 cuda: True
 device: 'cuda'
+
+frame_sides: [-1,0,1]
 
 min_depth: 0.1
 max_depth: 80.0

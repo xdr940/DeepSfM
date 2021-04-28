@@ -1,6 +1,6 @@
 model:
   framework: 'ind' #shared,ind,spv,rebuild
-  mode: ['1in','default','3din','fin-2out'] #[encoder,depth,posecnn]
+  mode: ['3din','default','3din','fin-2out'] #[encoder,depth,posecnn]
   load_paths:
 #    depth_encoder: '/home/roit/models/torchvision/official/resnet18-5c106cde.pth'
 #    pose_encoder: '/home/roit/models/torchvision/official/resnet18-5c106cde.pth'
@@ -19,7 +19,7 @@ model:
 
 dataset:
   type: 'kitti'
-  path: '/home/roit/datasets/vsd'
+  path: '/home/roit/datasets/kitti'
   split:
     path: '/home/roit/datasets/splits/kitti/eigen_zhou_std'
     train_file: 'train.txt'
@@ -31,8 +31,6 @@ dataset:
   full_width: 1242
   full_height: 375
 
-feed_width: 640  #"'width' must be a multiple of 32"
-feed_height: 192 #"'height' must be a multiple of 32"
 
 scales: [0,1,2,3]
 disparity_smoothness: 0.1 #set manual
@@ -41,7 +39,7 @@ device: 'cuda'
 
 frame_sides: [-1,0,1]
 
-yaml_file: /home/roit/aws/aprojects/DeepSfMLearner/opts/mc.yaml
+yaml_file: /home/roit/aws/aprojects/DeepSfMLearner/opts/kitti.yaml
 log_dir: '/home/roit/models/DeepSfM/kitti'
 tb_log_frequency: 12
 epoch: 10
