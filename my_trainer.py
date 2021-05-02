@@ -735,7 +735,7 @@ class Trainer:
                                             time=duration,
                                             dict=self.metrics
                                             )
-            if (epoch + 1) % opts['weights_save_frequency'] == 0 and epoch+1>=opts['model_first_save']:
+            if (epoch + 1) % opts['weights_save_frequency'] == 0 and epoch >=opts['model_first_save']:
 
 
                 save_folder = self.checkpoints_path / "models" / "weights_{}".format(epoch)

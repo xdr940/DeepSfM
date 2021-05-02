@@ -1,8 +1,8 @@
 model:
-  encoder_mode: "1in" #[encoder,depth,posecnn]
+  encoder_mode: "3din" #[encoder,depth,posecnn]
   load_paths:
-    encoder: '/home/roit/models/DeepSfM/gnz-kitti/0427_2137/models/weights_8/depth_encoder.pth'
-    depth: '/home/roit/models/DeepSfM/gnz-kitti/0427_2137/models/weights_8/depth.pth'
+    encoder: '/home/roit/models/DeepSfM/kitti/0501_0120/models/weights_9/depth_encoder.pth'
+    depth: '/home/roit/models/DeepSfM/kitti/0501_0120/models/weights_9/depth.pth'
   device: 'cuda'
   scales: [0,1,2,3]
   optimizer_path: null
