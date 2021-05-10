@@ -21,7 +21,7 @@ dataset:
   type: 'mc'
   path: '/home/roit/datasets/mcv5'
   split:
-    path: '/home/roit/datasets/splits/mc/mcv5-sildurs-e-2k-12345'
+    path: '/home/roit/datasets/splits/mc/mcv5-mixed-full-12345'
     train_file: 'train.txt'
     val_file: 'val.txt'
   num_workers: 12
@@ -42,7 +42,7 @@ frame_sides: [-1,0,1]
 yaml_file: /home/roit/aws/aprojects/DeepSfMLearner/opts/mc.yaml
 log_dir: '/home/roit/models/DeepSfM/mc'
 tb_log_frequency: 12
-epoch: 10
+epoch: 15
 model_first_save: 6
 weights_save_frequency: 1
 min_depth: 0.1
