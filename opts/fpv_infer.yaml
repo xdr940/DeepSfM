@@ -1,0 +1,49 @@
+model:
+  encoder_mode: "1in" #[encoder,depth,posecnn]
+  load_paths:
+#    depth_encoder: '/home/roit/models/torchvision/official/resnet18-5c106cde.pth'
+#    pose_encoder: '/home/roit/models/torchvision/official/resnet18-5c106cde.pth'
+    encoder: '/home/roit/models/DeepSfM/fpv/0511_1846/models/weights_9/depth_encoder.pth'
+    depth: '/home/roit/models/DeepSfM/fpv/0511_1846/models/weights_9/depth.pth'
+#    depth_encoder: null
+#    pose_encoder: null
+  #    depth: null
+#    pose: null
+#    posecnn: null
+  device: 'cuda'
+
+dataset:
+  type: 'custom_mono'
+  path: '/home/roit/bluep2/datasets/fpv'
+  split:
+    path: '/home/roit/datasets/splits/custom/fpv'
+#    train_file: 'train.txt'
+    test_file: '0003.txt'
+  num_workers: 12
+  batch_size: 1
+  to_height: 256 #same with feed height
+  to_width: 384
+  full_width: 1280
+  full_height: 720
+
+feed_width: 384  #"'width' must be a multiple of 32"
+feed_height: 256 #"'height' must be a multiple of 32"
+
+#scales: [0,1,2,3]
+#disparity_smoothness: 0.1 #set manual
+cuda: True
+device: 'cuda'
+
+frame_sides: [0]
+
+yaml_file: /home/roit/aws/aprojects/DeepSfMLearner/opts/fpv.yaml
+#log_dir: '/home/roit/models/DeepSfM/fpv'
+#tb_log_frequency: 12
+#epoch: 10
+#model_first_save: 6
+#weights_save_frequency: 1
+min_depth: 0.1
+max_depth: 100.0
+
+out_dir: /home/roit/bluep2/test_out/fpv/0003
+sub_dirs: ['disp']

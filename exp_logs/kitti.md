@@ -3,11 +3,12 @@
 |0427_2137|ind,['1in','default','3din','fin-2out']|null->kitti|
 |0428_0412|ind,['1in','default','3din','fin-2out']|imgnt->kitti|
 |0428_1158|ind,['1in','default','3din','fin-2out']|0317_0246(mc)->kitti|
+|0508_1754|ind,['1in','default','3din','fin-2out']|0507_1431(mc)->kitti||
 |---|||
 |0428_2047|ind,['3din','default','3din','fin-2out']|0318_0304->kitti|
 |0430_1645|ind,['3din','default','3din','fin-2out']|null->kitti|
 |0501_0120|ind,['3din','default','3din','fin-2out']|imgnt->kitti|
-
+|0509_0004|ind,['3din','default','3din','fin-2out']|0507_1431(mc)->kitti|
 
 
 ||||

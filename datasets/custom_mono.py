@@ -10,12 +10,7 @@ from datasets.mono_dataset_v2 import MonoDataset
 
 from torch.utils.data import DataLoader
 
-def relpath_split(relpath):
-    relpath = relpath.split('/')
-    scene=relpath[0]
-    frame = relpath[1]
-    frame=frame.replace('.jpg','')
-    return scene,frame
+
 
 
 class CustomMonoDataset(MonoDataset):
@@ -48,11 +43,20 @@ class CustomMonoDataset(MonoDataset):
         #                   [0, 0, 1, 0],
         #                   [0, 0, 0, 1]], dtype=np.float32)
 
-        self.img_ext = '.jpg'
+        self.img_ext = '.png'
+        self.scene_reg = "{:04d}"
+        self.frame_reg = "{:04d}"
+
+    def relpath_split(self,relpath):
+        relpath = relpath.split('/')
+        scene = relpath[0]
+        frame = relpath[1]
+        frame = frame.replace(self.img_ext, '')
+        return scene, frame
 
     def __get_image_path__(self, line, side):
-        scene,frame = relpath_split(line)
-        reframe = "{:07d}".format(int(frame)+side)
+        scene,frame = self.relpath_split(line)
+        reframe = (self.frame_reg).format(int(frame)+side)
         line = scene+'/'+reframe+self.img_ext
         image_path = Path(self.data_path)/ line
         return image_path

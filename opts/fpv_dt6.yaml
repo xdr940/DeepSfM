@@ -1,13 +1,13 @@
 model:
-  framework: 'ind' #shared,ind,spv,rebuild
-  mode: ['1in','default','3din','fin-2out'] #[encoder,depth,posecnn]
+  framework: 'shared' #shared,ind,spv,rebuild
+  mode: ['3din','default','3din','fin-2out'] #[encoder,depth,posecnn]
   load_paths:
 #    depth_encoder: '/home/roit/models/torchvision/official/resnet18-5c106cde.pth'
 #    pose_encoder: '/home/roit/models/torchvision/official/resnet18-5c106cde.pth'
-#    depth_encoder: '/home/roit/models/DeepSfM/tmp/0317_0246/models/weights_29/encoder.pth'
-#    pose_encoder: '/home/roit/models/DeepSfM/tmp/0317_0246/models/weights_29/encoder.pth'
-    depth_encoder: null
-    pose_encoder: null
+    depth_encoder: '/home/roit/models/DeepSfM/mc/0507_1431/models/weights_14/depth_encoder.pth'
+    pose_encoder: '/home/roit/models/DeepSfM/mc/0507_1431/models/weights_14/pose_encoder.pth'
+#    depth_encoder: null
+#    pose_encoder: null
   #    depth: null
 #    pose: null
 #    posecnn: null
@@ -19,9 +19,9 @@ model:
 
 dataset:
   type: 'custom_mono'
-  path: '/home/roit/bluep2/datasets/fpv'
+  path: '/home/roit/bluep2/datasets/fpv_downtown'
   split:
-    path: '/home/roit/datasets/splits/custom/fpv'
+    path: '/home/roit/datasets/splits/fpv_downtowns'
     train_file: 'train.txt'
     val_file: 'val.txt'
   num_workers: 12
@@ -39,10 +39,10 @@ disparity_smoothness: 0.1 #set manual
 cuda: True
 device: 'cuda'
 
-frame_sides: [-1,0,1]
+frame_sides: [-2,0,2]
 
-yaml_file: /home/roit/aws/aprojects/DeepSfMLearner/opts/vsd.yaml
-log_dir: '/home/roit/models/DeepSfM/vsd'
+yaml_file: /home/roit/aws/aprojects/DeepSfMLearner/opts/fpv.yaml
+log_dir: '/home/roit/models/DeepSfM/fpv'
 tb_log_frequency: 12
 epoch: 10
 model_first_save: 6
