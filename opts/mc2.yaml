@@ -6,8 +6,8 @@ model:
 #    pose_encoder: '/home/roit/models/torchvision/official/resnet18-5c106cde.pth'
 #    depth_encoder: '/home/roit/models/DeepSfM/tmp/0317_0246/models/weights_29/encoder.pth'
 #    pose_encoder: '/home/roit/models/DeepSfM/tmp/0317_0246/models/weights_29/encoder.pth'
-    depth_encoder: null
-    pose_encoder: null
+    encoder: '/home/roit/bluep2/models/DeepSfM/mc_libs/0317_0246/models/weights_29/encoder.pth'
+#    pose_encoder: null
   #    depth: null
 #    pose: null
 #    posecnn: null

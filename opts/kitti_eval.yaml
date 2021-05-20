@@ -3,9 +3,9 @@ model:
   load_paths:
 #    encoder: '/home/roit/models/DeepSfM/mc/0507_1431/models/weights_14/depth_encoder.pth'
 #    depth: '/home/roit/models/DeepSfM/mc/0507_1431/models/weights_14/depth.pth'
-    encoder: '/home/roit/bluep2/models/DeepSfM/gnz-kitti/0509_0004/models/weights_9/depth_encoder.pth'
+    encoder: '/home/roit/bluep2/models/DeepSfM/gnz-kitti/3ds-mono/0519_1409/models/weights_9/encoder.pth'
 #    encoder: '/home/roit/bluep2/models/DeepSfM/mc_libs/0317_2228/models/weights_29/encoder.pth'
-    depth: '/home/roit/bluep2/models/DeepSfM/gnz-kitti/0509_0004/models/weights_9/depth.pth'
+    depth: '/home/roit/bluep2/models/DeepSfM/gnz-kitti/3ds-mono/0519_1409/models/weights_9/depth.pth'
 
   device: 'cuda'
   scales: [0,1,2,3]
