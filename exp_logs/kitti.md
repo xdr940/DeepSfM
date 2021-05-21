@@ -5,16 +5,16 @@
 |0428_1158|ind,['1in','default','3din','fin-2out']|0317_0246(mc)->kitti|
 |0508_1754|ind,['1in','default','3din','fin-2out']|0507_1431(mc)->kitti||
 |---|||
-|0428_2047|ind,['3din','default','3din','fin-2out']|0318_0304->kitti|
 |0430_1645|ind,['3din','default','3din','fin-2out']|null->kitti|
 |0501_0120|ind,['3din','default','3din','fin-2out']|imgnt->kitti|
+|0428_2047|ind,['3din','default','3din','fin-2out']|0318_0304->kitti|
 |0509_0004|ind,['3din','default','3din','fin-2out']|0507_1431(mc)->kitti|
 |---|||
 |0518_2135|shared,['3din','default','3din','fin-2out']|scratch - > kitti|
 |0519_0306|shared,['3din','default','3din','fin-2out']|imgnet->kitti|
 |0519_0837|shared,['3din','default','3din','fin-2out']|0317_0246->kitti|
 |0519_1409|shared,['3din','default','3din','fin-2out']|0515_0813->kitti|
-
+|0520_2247|shared,['3din','default','3din','fin-2out']|0519_1941->kitti|
 ||||
 |---|---|---|
 |0427_2137/w9|&   0.141  &   1.117  &   4.797  &   0.205  &   0.839  &   0.948  &   0.980  \\||
@@ -40,4 +40,4 @@
 |0519_0306|&   0.158  &   2.447  &   5.511  &   0.220  &   0.839  &   0.938  &   0.970  \\|
 |0519_0837|&   0.165  &   2.361  &   5.535  &   0.229  &   0.820  &   0.934  &   0.968  \\|
 |0519_1409|&   0.158  &   2.133  &   5.555  &   0.223  &   0.829  &   0.936  &   0.969  \\|
-
+|0520_2247|&   0.163  &   2.790  &   5.568  &   0.224  &   0.836  &   0.936  &   0.968  \\|

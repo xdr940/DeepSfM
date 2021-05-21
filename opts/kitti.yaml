@@ -2,7 +2,7 @@ model:
   framework: 'shared' #shared,ind,spv,rebuild
   mode: ['3din','default','3din','fin-2out'] #[encoder,depth,posecnn]
   load_paths:
-    encoder: null
+    encoder: '/home/roit/bluep2/models/DeepSfM/mc_libs/0519_1941/models/weights_14/encoder.pth'
 #    pose_encoder: '/home/roit/models/DeepSfM/mc/0507_1431/models/weights_14/pose_encoder.pth'
 #    depth_encoder: '/home/roit/models/DeepSfM/tmp/0317_0246/models/weights_29/encoder.pth'
 #    pose_encoder: '/home/roit/models/DeepSfM/tmp/0317_0246/models/weights_29/encoder.pth'
