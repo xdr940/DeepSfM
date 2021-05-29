@@ -1,16 +1,8 @@
 model:
-  framework: 'shared' #shared,ind,spv,rebuild
-  mode: ['3din','default','3din','fin-2out'] #[encoder,depth,posecnn]
+  framework: 'ind' #shared,ind,spv,rebuild
+  mode: ['1in','default','3din','fin-2out'] #[encoder,depth,posecnn]
   load_paths:
-#    depth_encoder: '/home/roit/models/torchvision/official/resnet18-5c106cde.pth'
-#    pose_encoder: '/home/roit/models/torchvision/official/resnet18-5c106cde.pth'
-#    depth_encoder: '/home/roit/models/DeepSfM/tmp/0317_0246/models/weights_29/encoder.pth'
-#    pose_encoder: '/home/roit/models/DeepSfM/tmp/0317_0246/models/weights_29/encoder.pth'
-    depth_encoder: null
-    pose_encoder: null
-  #    depth: null
-#    pose: null
-#    posecnn: null
+    encoder: '/home/roit/models/torchvision/official/resnet18-5c106cde.pth'
   device: 'cuda'
   scales: [0,1,2,3]
   lr: 0.0001
@@ -19,9 +11,9 @@ model:
 
 dataset:
   type: 'mc'
-  path: '/home/roit/datasets/mcv5'
+  path: '/home/roit/datasets/mcv21'
   split:
-    path: '/home/roit/datasets/splits/mc/mcv5-15k-2k-12345'
+    path: '/home/roit/datasets/splits/mc/mcv21-sildurs(e)-6k-12345'
     train_file: 'train.txt'
     val_file: 'val.txt'
   num_workers: 12
@@ -42,8 +34,8 @@ frame_sides: [-1,0,1]
 yaml_file: /home/roit/aws/aprojects/DeepSfMLearner/opts/mc.yaml
 log_dir: '/home/roit/models/DeepSfM/mc'
 tb_log_frequency: 12
-epoch: 10
-model_first_save: 6
+epoch: 15
+model_first_save: 10
 weights_save_frequency: 1
 min_depth: 0.1
 max_depth: 576.0

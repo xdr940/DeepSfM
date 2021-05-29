@@ -1,6 +1,6 @@
 model:
   framework: 'ind' #shared,ind,spv,rebuild
-  mode: ['3din','default','3din','fin-2out'] #[encoder,depth,posecnn]
+  mode: ['1in','default','3din','fin-2out'] #[encoder,depth,posecnn]
   load_paths:
     encoder: '/home/roit/models/torchvision/official/resnet18-5c106cde.pth'
   device: 'cuda'
@@ -11,9 +11,9 @@ model:
 
 dataset:
   type: 'mc'
-  path: '/home/roit/datasets/mcv31'
+  path: '/home/roit/datasets/mcv5'
   split:
-    path: '/home/roit/datasets/splits/mc/mcv31-sildurs(e)-6k-12345'
+    path: '/home/roit/datasets/splits/mc/mcv5-sildurs(e)-6k-12345'
     train_file: 'train.txt'
     val_file: 'val.txt'
   num_workers: 12
@@ -29,7 +29,7 @@ disparity_smoothness: 0.1 #set manual
 cuda: True
 device: 'cuda'
 
-frame_sides: [-3,0,3]
+frame_sides: [-2,0,2]
 
 yaml_file: /home/roit/aws/aprojects/DeepSfMLearner/opts/mc.yaml
 log_dir: '/home/roit/models/DeepSfM/mc'

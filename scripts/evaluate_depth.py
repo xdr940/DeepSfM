@@ -215,8 +215,11 @@ def evaluate(opts):
 
         pred[pred < MIN_DEPTH] = MIN_DEPTH  # 所有历史数据中最小的depth, 更新,
         pred[pred > MAX_DEPTH] = MAX_DEPTH  # ...
-        metric = compute_errors(gt, pred,mode=metric_mode)
-        metrics.append(metric)
+        try:
+            metric = compute_errors(gt, pred,mode=metric_mode)
+            metrics.append(metric)
+        except:
+            print('error')
 
     metrics = np.array(metrics)
     mean_metrics = np.mean(metrics, axis=0)
@@ -241,7 +244,7 @@ def evaluate(opts):
 
 if __name__ == "__main__":
 
-    opts = YamlHandler('/home/roit/aws/aprojects/DeepSfMLearner/opts/kitti_eval.yaml').read_yaml()
+    opts = YamlHandler('/home/roit/aws/aprojects/DeepSfMLearner/opts/mc_eval.yaml').read_yaml()
     # opts = YamlHandler('/home/roit/aws/aprojects/DeepSfMLearner/opts/mc_eval.yaml').read_yaml()
 
 

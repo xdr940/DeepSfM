@@ -1,8 +1,12 @@
 model:
   encoder_mode: "3din" #[encoder,depth,posecnn]
   load_paths:
-    encoder: '/home/roit/models/DeepSfM/mc_lights/0426_0428/models/weights_9/encoder.pth'
-    depth: '/home/roit/models/DeepSfM/mc_lights/0426_0428/models/weights_9/depth.pth'
+    encoder: '/home/roit/models/DeepSfM/mc/3d-mono/0525_1311/models/weights_14/depth_encoder.pth'
+ #    encoder: '/home/roit/bluep2/models/DeepSfM/gnz-kitti/mono/0427_2137/models/weights_9/depth_encoder.pth'
+#    encoder: '/home/roit/bluep2/models/DeepSfM/fpv-gnz/fpv_dt/0517_0558/models/weights_9/depth_encoder.pth'
+#    depth: '/home/roit/bluep2/models/DeepSfM/fpv-gnz/fpv_dt/0517_0558/models/weights_9/depth.pth'
+    depth: '/home/roit/models/DeepSfM/mc/3d-mono/0525_1311/models/weights_14/depth.pth'
+
   device: 'cuda'
   scales: [0,1,2,3]
   optimizer_path: null
@@ -11,7 +15,7 @@ dataset:
   type: 'mc'
   path: '/home/roit/datasets/mcv5'
   split:
-    path: '/home/roit/datasets/splits/mc/mcv5-sildurs-e-10k-12345-s'
+    path: '/home/roit/datasets/splits/mc/mcv5-sildurs(e)-6k-12345'
     train_file: 'train.txt'
     val_file: 'val.txt'
     test_file: 'test.txt'
@@ -29,7 +33,7 @@ scales: [0,1,2,3]
 cuda: True
 device: 'cuda'
 
-frame_sides: [-1,0,1]
+frame_sides: [-3,0,3]
 
 min_depth: 0.1
 max_depth: 576.0
