@@ -571,8 +571,10 @@ class Trainer:
 
 
 
-    def tb_log(self, mode,metrics, inputs=None, outputs=None, losses=None):
+    def tb_log(self, mode,metrics, inputs=None, outputs=None, losses=None,add_img=True):
+
         """Write an event to the tensorboard events file
+            scalers and images are saved same time, bad logic
         global inputs:
             self.step
             self.writers
@@ -610,7 +612,8 @@ class Trainer:
                     elif k in ['abs_rel','sq_rel','rmse','rmse_log']:
                         writer.add_scalar("err/{}".format(k), v, self.step)
 
-        if inputs!=None or outputs!=None:
+
+        if add_img and ( inputs!=None or outputs!=None):
             b=0# int(random.random()*8)
 
             for s in log_scales:
@@ -677,24 +680,36 @@ class Trainer:
             duration = time.time() - before_op_time
 
             # log less frequently after the first 2000 steps to save time & disk space
-            early_phase = batch_idx % self.tb_log_frequency == 0 and self.step < 5000
-            late_phase = self.step % 1000 == 0 and self.step > 5000
 
             #
             self.logger.train_logger_update(batch= batch_idx,time = duration,dict=losses)
 
             #val, and terminal_val_log, and tb_log
-            if early_phase or late_phase:
+            if "depth_gt" in inputs:
+                # train_set validate
+                self.metrics.update(self.compute_depth_metrics(inputs, outputs, dataset_type=self.dataset_type))
+
+            phase0 = batch_idx % self.tb_log_frequency == 0 and self.step < 1000
+            phase1 = self.step % 100 == 0 and self.step > 1000 and self.step < 10000
+            phase2 = self.step % 1000 == 0 and self.step > 10000 and self.step < 100000
+
+            if phase0 or phase1 or phase2:
 
 
-                if "depth_gt" in inputs:
-                    #train_set validate
-                    self.metrics.update(self.compute_depth_metrics(inputs, outputs,dataset_type=self.dataset_type))
                 self.tb_log(mode='train',
                             metrics=self.metrics,
                             inputs=inputs,
                             outputs=outputs,
-                            losses=losses
+                            losses=losses,
+                            add_img=True
+                            )
+            else:
+                self.tb_log(mode='train',
+                            metrics=self.metrics,
+                            inputs=inputs,
+                            outputs=outputs,
+                            losses=losses,
+                            add_img=False
                             )
 
 
@@ -776,6 +791,7 @@ class Trainer:
             self.val_iter = iter(self.val_loader)
             inputs = self.val_iter.next()
 
+        val_batch_idx = self.val_iter._rcvd_idx
 
         time_st = time.time()
         outputs, losses = self.batch_process(self.model_mode,self.framework,inputs)
@@ -783,22 +799,37 @@ class Trainer:
 
 
         duration =time.time() -  time_st
-        self.logger.valid_logger_update(batch=self.val_iter._rcvd_idx,
+        self.logger.valid_logger_update(batch=val_batch_idx,
                                         time=duration,
                                         dict=losses
                                         )
+        self.metrics.update(self.compute_depth_metrics(inputs, outputs, dataset_type=self.dataset_type))
 
 
+        phase0 = val_batch_idx % self.tb_log_frequency == 0 and self.step < 1000
+        phase1 = self.step % 100 == 0 and self.step > 1000 and self.step < 10000
+        phase2 = self.step % 1000 == 0 and self.step > 10000 and self.step < 100000
 
+        if phase0 or phase1 or phase2:
 
-        if "depth_gt" in inputs:
-            #val_set validate
-            self.metrics.update(self.compute_depth_metrics(inputs, outputs,dataset_type=self.dataset_type))
-            self.tb_log(mode="val",
-                        metrics = self.metrics,
+            self.tb_log(mode='val',
+                        metrics=self.metrics,
                         inputs=inputs,
+                        outputs=outputs,
                         losses=losses,
-                        outputs=outputs)
+                        add_img=True
+                        )
+        else:
+            self.tb_log(mode='val',
+                        metrics=self.metrics,
+                        inputs=inputs,
+                        outputs=outputs,
+                        losses=losses,
+                        add_img=False
+                        )
+
+
+
 
         del inputs, outputs, losses
         set_mode(self.models,'train')

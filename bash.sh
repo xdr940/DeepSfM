@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 
-echo mc1
-python scripts/train.py --settings /home/roit/aws/aprojects/DeepSfMLearner/opts/mc1.yaml
+echo fpv
+python scripts/train.py --settings /home/roit/aws/aprojects/DeepSfMLearner/opts/fpv.yaml
 clear
 
-echo mc2
-python scripts/train.py --settings /home/roit/aws/aprojects/DeepSfMLearner/opts/mc2.yaml
+echo fpv1
+python scripts/train.py --settings /home/roit/aws/aprojects/DeepSfMLearner/opts/fpv1.yaml
 clear
 
-echo mc3
-python scripts/train.py --settings /home/roit/aws/aprojects/DeepSfMLearner/opts/mc3.yaml
+echo fpv2
+python scripts/train.py --settings /home/roit/aws/aprojects/DeepSfMLearner/opts/fpv2.yaml
 clear
 #
 #echo mc4

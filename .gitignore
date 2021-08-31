@@ -11,3 +11,4 @@ __pycache__\
 .\eigen_test_out_official
 .\eigen_test_fullwitherodil
 *.txt
+opts

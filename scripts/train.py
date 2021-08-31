@@ -6,9 +6,9 @@
 
 from __future__ import absolute_import, division, print_function
 
-from my_trainer import Trainer
 from utils.yaml_wrapper import YamlHandler
 import argparse
+from my_trainer import Trainer
 
 
 
@@ -20,6 +20,6 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="DeepSfM")
-    parser.add_argument("--settings", default='/home/roit/aws/aprojects/DeepSfMLearner/opts/kitti.yaml')
+    parser.add_argument("--settings", default='/home/roit/aws/aprojects/DeepSfMLearner/opts/mc_mbs.yaml')
     args = parser.parse_args()
     main(args)

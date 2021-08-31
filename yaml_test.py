@@ -6,7 +6,7 @@ from utils.yaml_wrapper import YamlHandler
 if __name__ == '__main__':
 
     # 读取config.yaml配置文件数据
-    args = YamlHandler('./opts/train_opts.yaml').read_yaml()
+    args = YamlHandler('./opts/mc_mbs.yaml').read_yaml()
     print(args)
 
 
