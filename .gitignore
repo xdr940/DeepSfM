@@ -1,7 +1,8 @@
 #pycharm
 __pycache__
-__pycache__\
 .idea
+opts
+
 */__pycache__
 #splits
 *.npz
@@ -11,4 +12,5 @@ __pycache__\
 .\eigen_test_out_official
 .\eigen_test_fullwitherodil
 *.txt
-opts
+
+*.yaml

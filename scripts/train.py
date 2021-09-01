@@ -20,6 +20,6 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="DeepSfM")
-    parser.add_argument("--settings", default='/home/roit/aws/aprojects/DeepSfMLearner/opts/mc_mbs.yaml')
+    parser.add_argument("--settings", default='/home/roit/aws/aprojects/DeepSfMLearner/opts/mc1.yaml')
     args = parser.parse_args()
     main(args)

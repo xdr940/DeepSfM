@@ -1,53 +1,53 @@
 #!/usr/bin/env bash
 
-echo fpv
-python scripts/train.py --settings /home/roit/aws/aprojects/DeepSfMLearner/opts/fpv.yaml
+echo mc1
+python scripts/train.py --settings /home/roit/aws/aprojects/DeepSfMLearner/opts/mc1.yaml
 clear
 
-echo fpv1
-python scripts/train.py --settings /home/roit/aws/aprojects/DeepSfMLearner/opts/fpv1.yaml
+echo mc2
+python scripts/train.py --settings /home/roit/aws/aprojects/DeepSfMLearner/opts/mc2.yaml
 clear
 
-echo fpv2
-python scripts/train.py --settings /home/roit/aws/aprojects/DeepSfMLearner/opts/fpv2.yaml
+echo mc3
+python scripts/train.py --settings /home/roit/aws/aprojects/DeepSfMLearner/opts/mc3.yaml
 clear
-#
-#echo mc4
-#python scripts/train.py --settings /home/roit/aws/aprojects/DeepSfMLearner/opts/mc4.yaml
-#clear
-#
-#echo mc5
-#python scripts/train.py --settings /home/roit/aws/aprojects/DeepSfMLearner/opts/mc5.yaml
-#clear
-#
-#echo mc6
-#python scripts/train.py --settings /home/roit/aws/aprojects/DeepSfMLearner/opts/mc6.yaml
-#clear
-#
-#echo mc7
-#python scripts/train.py --settings /home/roit/aws/aprojects/DeepSfMLearner/opts/mc7.yaml
-#clear
-#
-#echo mc8
-#python scripts/train.py --settings /home/roit/aws/aprojects/DeepSfMLearner/opts/mc8.yaml
-#clear
-#
-#echo mc9
-#python scripts/train.py --settings /home/roit/aws/aprojects/DeepSfMLearner/opts/mc9.yaml
-#clear
-#
-#
-#
-#echo mc10
-#python scripts/train.py --settings /home/roit/aws/aprojects/DeepSfMLearner/opts/mc10.yaml
-#clear
-#
-#echo mc11
-#python scripts/train.py --settings /home/roit/aws/aprojects/DeepSfMLearner/opts/m11.yaml
-#clear
-#
-#echo mc12
-#python scripts/train.py --settings /home/roit/aws/aprojects/DeepSfMLearner/opts/mc12.yaml
+
+echo mc4
+python scripts/train.py --settings /home/roit/aws/aprojects/DeepSfMLearner/opts/mc4.yaml
+clear
+
+echo mc5
+python scripts/train.py --settings /home/roit/aws/aprojects/DeepSfMLearner/opts/mc5.yaml
+clear
+
+echo mc6
+python scripts/train.py --settings /home/roit/aws/aprojects/DeepSfMLearner/opts/mc6.yaml
+clear
+
+echo mc7
+python scripts/train.py --settings /home/roit/aws/aprojects/DeepSfMLearner/opts/mc7.yaml
+clear
+
+echo mc8
+python scripts/train.py --settings /home/roit/aws/aprojects/DeepSfMLearner/opts/mc8.yaml
+clear
+
+echo mc9
+python scripts/train.py --settings /home/roit/aws/aprojects/DeepSfMLearner/opts/mc9.yaml
+clear
+
+
+
+echo mc10
+python scripts/train.py --settings /home/roit/aws/aprojects/DeepSfMLearner/opts/mc10.yaml
+clear
+
+echo mc11
+python scripts/train.py --settings /home/roit/aws/aprojects/DeepSfMLearner/opts/m11.yaml
+clear
+
+echo mc12
+python scripts/train.py --settings /home/roit/aws/aprojects/DeepSfMLearner/opts/mc12.yaml
 #clear
 #
 #echo mc13
