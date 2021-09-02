@@ -1,3 +1,6 @@
+
+gnz models
+
 ||||
 |---|---|---|
 |0427_2137|ind,['1in','default','3din','fin-2out']|null->kitti|
@@ -15,6 +18,9 @@
 |0519_0837|shared,['3din','default','3din','fin-2out']|0317_0246->kitti|
 |0519_1409|shared,['3din','default','3din','fin-2out']|0515_0813->kitti|
 |0520_2247|shared,['3din','default','3din','fin-2out']|0519_1941->kitti|
+
+test value
+
 ||||
 |---|---|---|
 |0427_2137/w9|&   0.141  &   1.117  &   4.797  &   0.205  &   0.839  &   0.948  &   0.980  \\||

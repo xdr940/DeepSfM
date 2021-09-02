@@ -2,6 +2,7 @@
 __pycache__
 .idea
 opts
+*.sh
 
 */__pycache__
 #splits
@@ -13,4 +14,3 @@ opts
 .\eigen_test_fullwitherodil
 *.txt
 
-*.yaml

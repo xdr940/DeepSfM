@@ -803,7 +803,10 @@ class Trainer:
                                         time=duration,
                                         dict=losses
                                         )
-        self.metrics.update(self.compute_depth_metrics(inputs, outputs, dataset_type=self.dataset_type))
+        if "depth_gt" in inputs.keys():
+            self.metrics.update(self.compute_depth_metrics(inputs, outputs, dataset_type=self.dataset_type))
+        else:
+            self.metrics=None
 
 
         phase0 = val_batch_idx % self.tb_log_frequency == 0 and self.step < 1000
