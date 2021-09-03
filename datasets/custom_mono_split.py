@@ -66,18 +66,18 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description='custom dataset split for training ,validation and test')
 
-    parser.add_argument('--dataset_path', type=str,default='/home/roit/bluep2/datasets/fpv_downtown',help='path to a test image or folder of images')
+    parser.add_argument('--dataset_path', type=str,default='/home/roit/bluep2/datasets/fpv_feild',help='path to a test image or folder of images')
     parser.add_argument("--num",
-                        # default=2000,
-                        default=None
+                        default=100,
+                        # default=None
                         )
     parser.add_argument('--reference',
                         default=None,
                         # default='./selection.csv',
                         help='selection table for filtering')
-    parser.add_argument("--proportion",default=[0.95,0.05,0.0],help="train, val, test")
+    parser.add_argument("--proportion",default=[0.8,0.2,0.0],help="train, val, test")
     parser.add_argument("--rand_seed",default=12346)
-    parser.add_argument("--out_dir",default='../splits/fpv_downtowns')
+    parser.add_argument("--out_dir",default='../splits/fpv_feild_lite')
 
     return parser.parse_args()
 def main(args):

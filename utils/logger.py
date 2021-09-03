@@ -96,13 +96,14 @@ class TermLogger(object):
     def reset_valid_bar(self):
         self.valid_bar = ProgressBar(maxval=self.valid_size, fd=self.valid_bar_writer).start()
     #public
-    def epoch_logger_update(self,epoch,time,dict):
+    def epoch_logger_update(self,epoch,time,metrics_dict):
         headers = ''
-        for name in dict.keys():
-            headers += name + '\t'
-        values=''
-        for v in dict.values():
-            values+='{:.4f}\t'.format(float(v))
+        values = ''
+        if metrics_dict :
+            for name in metrics_dict.keys():
+                headers += name + '\t'
+            for v in metrics_dict.values():
+                values+='{:.4f}\t'.format(float(v))
         display = '--epochs--[{:d}/{:d}] eduration: {},ETA:{}\n'\
                       .format(epoch,self.n_epochs,self._time_formate(time),self._time_formate(time*(self.n_epochs-epoch))) + \
                   headers + \

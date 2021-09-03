@@ -739,7 +739,7 @@ class Trainer:
 
         self.logger.epoch_logger_update(epoch=0,
                                         time=0,
-                                        dict=self.metrics
+                                        metrics_dict=self.metrics
                                         )
 
         for epoch in range(opts['epoch']):
@@ -748,7 +748,7 @@ class Trainer:
             duration = time.time() - epc_st
             self.logger.epoch_logger_update(epoch=epoch+1,
                                             time=duration,
-                                            dict=self.metrics
+                                            metrics_dict=self.metrics
                                             )
             if (epoch + 1) % opts['weights_save_frequency'] == 0 and epoch >=opts['model_first_save']:
 
