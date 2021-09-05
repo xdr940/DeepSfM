@@ -121,7 +121,7 @@ class Trainer:
             train_loader = DataLoader(  # train_datasets:KITTIRAWDataset
                 dataset=train_dataset,
                 batch_size=batch_size,
-                shuffle=False,
+                shuffle=True,
                 num_workers=num_workers,
                 pin_memory=True,
                 drop_last=True
@@ -746,10 +746,15 @@ class Trainer:
             epc_st = time.time()
             self.epoch_process()
             duration = time.time() - epc_st
-            self.logger.epoch_logger_update(epoch=epoch+1,
+
+            try:
+                self.logger.epoch_logger_update(epoch=epoch+1,
                                             time=duration,
                                             metrics_dict=self.metrics
                                             )
+            except:
+                print("epoch process error")
+                continue
             if (epoch + 1) % opts['weights_save_frequency'] == 0 and epoch >=opts['model_first_save']:
 
 
