@@ -8,22 +8,13 @@ from __future__ import absolute_import, division, print_function
 import time
 import datetime
 from path import Path
-from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
-import matplotlib.pyplot as plt
-import random
 from utils.official import *
-from utils.img_process import tensor2array
-from kitti_utils import *
+from utils.kitti_utils import *
 from networks.layers import *
 
-from datasets import KITTIRAWDataset
-# from datasets import KITTIOdomDataset
-from datasets import MCDataset,VSDataset
-from datasets import CustomMonoDataset
-import networks
 from utils.logger import TermLogger
-from utils.assist import model_init,reframe
+from utils.assist import model_init,dataset_init,reframe
 import torch
 
 
@@ -75,112 +66,39 @@ def L2_loss(pred,depth_gt):
 class Trainer:
     def __init__(self, options,settings):
 
-        def dataset_init(dataset_opt):
 
-            # datasets setting
-            datasets_dict = {"kitti": KITTIRAWDataset,
-                             #"kitti_odom": KITTIOdomDataset,
-                             "mc": MCDataset,
-                             "custom_mono": CustomMonoDataset}
-
-            if dataset_opt['type'] in datasets_dict.keys():
-                dataset = datasets_dict[dataset_opt['type']]  # 选择建立哪个类，这里kitti，返回构造函数句柄
-            else:
-                dataset = CustomMonoDataset
-
-
-            split_path = Path(dataset_opt['split']['path'])
-            train_path = split_path / dataset_opt['split']['train_file']
-            val_path = split_path / dataset_opt['split']['val_file']
-            data_path = Path(dataset_opt['path'])
-
-            feed_height = dataset_opt['to_height']
-            feed_width = dataset_opt['to_width']
-
-
-            batch_size = dataset_opt['batch_size']
-            num_workers = dataset_opt['num_workers']
-
-
-            train_filenames = readlines(train_path)
-            val_filenames = readlines(val_path)
-            img_ext = '.png'
-
-            num_train_samples = len(train_filenames)
-            # train loader
-            train_dataset = dataset(  # KITTIRAWData
-                data_path = data_path,
-                filenames = train_filenames,
-                height=feed_height,
-                width=feed_width,
-                frame_sides=self.frame_sides,#kitti[0,-1,1],mc[-1,0,1]
-                num_scales = 4,
-                mode="train"
-                # img_ext='.png'
-            )
-            train_loader = DataLoader(  # train_datasets:KITTIRAWDataset
-                dataset=train_dataset,
-                batch_size=batch_size,
-                shuffle=True,
-                num_workers=num_workers,
-                pin_memory=True,
-                drop_last=True
-            )
-            # val loader
-            val_dataset = dataset(
-                data_path=data_path,
-                filenames=val_filenames,
-                height=feed_height,
-                width=feed_width,
-                frame_sides = self.frame_sides,
-                num_scales = 4,
-                mode="val",
-                img_ext=img_ext)
-
-            val_loader = DataLoader(
-                dataset=val_dataset,
-                batch_size=batch_size,
-                shuffle=False,
-                num_workers=num_workers,
-                pin_memory=True,
-                drop_last=True)
-
-            self.val_iter = iter(val_loader)
-            print("Using split:{}, {}, {}".format(split_path,
-                                                                        dataset_opt['split']['train_file'],
-                                                                        dataset_opt['split']['val_file']
-                                                                        ))
-            print("There are {:d} training items and {:d} validation items".format(
-                len(train_dataset), len(val_dataset)))
-
-            return train_loader, val_loader
 
         #self.opt = options
         self.start_time = datetime.datetime.now().strftime("%m-%d-%H:%M")
         self.checkpoints_path = Path(options['log_dir'])/self.start_time
         self.frame_sides = options['frame_sides']# all around
         self.frame_prior,self.frame_now,self.frame_next = self.frame_sides
-        self.scales = options['model']['scales']
-        self.model_mode = options['model']['mode']
-        self.framework = options['model']['framework']
+        self.model_components = options['model']['components']
+        self.model_paradigm = options['model']['paradigm']
 
-        self.feed_width = options['dataset']['to_width']
-        self.feed_height = options['dataset']['to_height']
+        # dataset
+        self.feed_width = options['feed_width']
+        self.feed_height = options['feed_height']
         self.full_height = options['dataset']['full_height']
         self.full_width = options['dataset']['full_width']
 
         self.min_depth = options['min_depth']
         self.max_depth = options['max_depth']
+        self.scales = options['scales']
 
+
+        # others
         self.tb_log_frequency = options['tb_log_frequency']
         self.weights_save_frequency = options['weights_save_frequency']
         #save model and events
 
 
         #args assert
-        self.device = torch.device(options['model']['device'])
-        self.models, self.model_optimizer,self.model_lr_scheduler = model_init(options['model'])
-        self.train_loader, self.val_loader = dataset_init(options['dataset'])
+        self.device = torch.device(options['device'])
+        self.models, self.model_optimizer,self.model_lr_scheduler = model_init(options)
+        self.train_loader, self.val_loader = dataset_init(options)
+
+        self.val_iter = iter(self.val_loader)
         self.dataset_type = options['dataset']['type']
         self.metrics = {"abs_rel": 0.0,
                         "sq_rel": 0.0,
@@ -197,12 +115,6 @@ class Trainer:
         self.logger.reset_epoch_bar()
 
 
-
-
-
-
-
-        #static define
 
 
         # tb_log
@@ -224,8 +136,8 @@ class Trainer:
         self.project_3d = {}
 
         for scale in options['scales']:
-            h = options['dataset']['to_height'] // (2 ** scale)
-            w = options['dataset']['to_width'] // (2 ** scale)
+            h = options['feed_height'] // (2 ** scale)
+            w = options['feed_width'] // (2 ** scale)
 
             self.layers['back_proj_depth'][scale] = BackprojectDepth(options['dataset']['batch_size'], h, w)
             self.layers['back_proj_depth'][scale].to(self.device)
@@ -293,7 +205,7 @@ class Trainer:
             reprojection_loss = reprojection_losses
 
             # add random numbers to break ties# 花书p149 向输入添加方差极小的噪声等价于 对权重施加范数惩罚
-            identity_reprojection_loss += torch.randn(identity_reprojection_loss.shape).cuda() * 0.00001
+            identity_reprojection_loss += torch.randn(identity_reprojection_loss.shape).to(self.device) * 0.00001
             # erro_maps = torch.cat((identity_reprojection_loss, reprojection_loss), dim=1)  # b4hw
 
             # --------------------------------------------------------------
@@ -435,7 +347,7 @@ class Trainer:
                 outputs[("color_identity", frame_side, scale)] = inputs[("color", frame_side, source_scale)]
 
     #1. forward pass1, more like core
-    def batch_process(self, model_mode,framework,inputs):
+    def batch_process(self, model_components,model_paradigm,inputs):
         """Pass a minibatch through the network and generate images and losses
         """
 
@@ -456,12 +368,12 @@ class Trainer:
 
 
         #depth pass
-        colors = reframe(mode=model_mode[0],inputs=inputs,frame_sides=self.frame_sides)
+        colors = reframe(component=model_components[0],inputs=inputs,frame_sides=self.frame_sides)
 
-        if framework == 'shared':
+        if model_paradigm == 'shared':
             features = self.models["encoder"](colors)#0:1611,1:1676
 
-        elif framework == 'ind':
+        elif model_paradigm == 'ind':
             features = self.models["depth_encoder"](colors)#0:1611,1:1676
 
         features = tuple(features)#0:2522, 1:5232
@@ -476,11 +388,11 @@ class Trainer:
 
         #pose pass
         poses=None
-        if framework == 'shared':
+        if model_paradigm == 'shared':
             poses = self.models['pose'](*features)
-        elif framework =='ind':
-            colors = reframe(mode=model_mode[2], inputs=inputs, frame_sides=self.frame_sides)
-            if model_mode[3] =='3dcnn':
+        elif model_paradigm =='ind':
+            colors = reframe(component=model_components[2], inputs=inputs, frame_sides=self.frame_sides)
+            if model_components[3] =='3dcnn':
                 poses = self.models['pose'](colors)
             else:
                 features = self.models['pose_encoder'](colors)
@@ -488,13 +400,13 @@ class Trainer:
 
 
             #
-        elif framework == "spv":
+        elif model_paradigm == "spv":
             losses = self.compute_losses_spv(inputs, outputs)
 
-        elif framework == "rebuild":
+        elif model_paradigm == "rebuild":
             pass
 
-        if framework in ['shared','ind']:
+        if model_paradigm in ['shared','ind']:
                 #pose pass
             cam_T_cam = transformation_from_parameters(
                 poses[:, 0,0,:3].unsqueeze(1), poses[:, 0,0,3:].unsqueeze(1), invert=True
@@ -668,11 +580,11 @@ class Trainer:
         for batch_idx, inputs in enumerate(self.train_loader):
             before_op_time = time.time()
             #model forwardpass
-            try:
-                outputs, losses = self.batch_process(self.model_mode,self.framework,inputs)#
-            except:
-                print('->batch process error')
-                continue
+            # try:
+            outputs, losses = self.batch_process(self.model_components,self.model_paradigm,inputs)#
+            # except:
+            #     print('->batch process error')
+            #     continue
             self.model_optimizer.zero_grad()
             losses["loss"].backward()
             self.model_optimizer.step()
@@ -799,7 +711,7 @@ class Trainer:
         val_batch_idx = self.val_iter._rcvd_idx
 
         time_st = time.time()
-        outputs, losses = self.batch_process(self.model_mode,self.framework,inputs)
+        outputs, losses = self.batch_process(self.model_components,self.model_paradigm,inputs)
 
 
 

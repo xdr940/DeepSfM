@@ -231,16 +231,16 @@ class Res3DEncoder2(models.ResNet):
 
         return self.features
 
-def getEncoder(model_mode,test=False):
-    if model_mode=="3in":
+def getEncoder(components,test=False):
+    if components=="3in":
         return Res3DEncoder1(layers=[2,2,2,2],
                          block=models.resnet.BasicBlock,
                              num_input_images=3)
-    elif model_mode=="3din" :
+    elif components=="3din" :
         return Res3DEncoder2(layers=[2, 2, 2, 2],
                              block=models.resnet.BasicBlock
                              )
-    elif model_mode=="1in":
+    elif components=="1in":
        return ResnetEncoder(
             num_layers=18,  # resnet18
             pretrained=False,

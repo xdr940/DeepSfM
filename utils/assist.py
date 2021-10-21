@@ -3,24 +3,36 @@ import networks
 from path import Path
 import torch.optim as optim
 import torch
+from torch.utils.data import DataLoader
 
+from utils.official import readlines
+from datasets import KITTIRAWDataset
+from datasets import MCDataset
+from datasets import CustomMonoDataset
 
-def reframe(mode,inputs,frame_sides,key='color_aug'):
+def reframe(component,inputs,frame_sides,key='color_aug'):
+    '''
 
-    if mode =='3din':
+    :param mode: encoder mode
+    :param inputs:
+    :param frame_sides: training seq input mode
+    :param key:
+    :return:
+    '''
+    if component =='3din':
         colors = torch.cat([inputs[key,frame_sides[0], 0].unsqueeze(dim=2),
                                 inputs[key, frame_sides[1], 0].unsqueeze(dim=2),
                                 inputs[key,frame_sides[2], 0].unsqueeze(dim=2)],
                                dim=2)
 
         return colors
-    elif mode =='3in':
+    elif component =='3in':
         colors = torch.cat([inputs[key,frame_sides[0], 0],
                                      inputs[key, frame_sides[0], 0],
                                      inputs[key, frame_sides[0], 0]],
                                     dim=1)
         return colors
-    elif mode =='2in':
+    elif component =='2in':
         color_prior = torch.cat([inputs[key, frame_sides[0], 0],
                                inputs[key, frame_sides[1], 0],
                                ],
@@ -30,42 +42,45 @@ def reframe(mode,inputs,frame_sides,key='color_aug'):
                                ],
                               dim=1)
         return color_prior,color_next
-    elif mode =='1in':
+    elif component =='1in':
         return  inputs[key, 0, 0]
 
-def model_init(model_opt):
-    # models
-    # details
-    print("--> model mode:{}".format(model_opt['mode']))
-    print("--> framework :{}".format(model_opt['framework']))
+def model_init(opts):
+    # global
+    device = opts['device']
+    scales = opts['scales']
 
-    device = model_opt['device']
+
+    # local
+    model_opt = opts['model']
+    print("--> components:{}".format(model_opt['components']))
+    print("--> paradigm :{}".format(model_opt['paradigm']))
+
     models = {}  # dict
-    scales = model_opt['scales']
     lr = model_opt['lr']
     scheduler_step_size = model_opt['scheduler_step_size']
-    model_mode = model_opt['mode']
+    components = model_opt['components']
     load_paths = model_opt['load_paths']
     optimizer_path = model_opt['optimizer_path']
-    framework = model_opt['framework']
+    paradigm = model_opt['paradigm']
 
-    if framework =='spv':
+    if paradigm =='spv':
         pass
-    elif framework =='shared':
-        models["encoder"] = networks.getEncoder(model_mode[0])
-        models["depth"] = networks.getDepthDecoder(model_mode[1])
-        models["pose"] = networks.getPoseDecoder(model_mode[3])
+    elif paradigm =='shared':
+        models["encoder"] = networks.getEncoder(components[0])
+        models["depth"] = networks.getDepthDecoder(components[1])
+        models["pose"] = networks.getPoseDecoder(components[3])
 
 
-    elif framework == 'ind':
-        models["depth_encoder"] = networks.getEncoder(model_mode[0])
-        models["depth"] = networks.getDepthDecoder(model_mode[1])
-        if model_mode[2] not in ['3din','3in','2in']:
-            models["pose"] = networks.getPoseCNN(model_mode[2])
+    elif paradigm == 'ind':
+        models["depth_encoder"] = networks.getEncoder(components[0])
+        models["depth"] = networks.getDepthDecoder(components[1])
+        if components[2] not in ['3din','3in','2in']:
+            models["pose"] = networks.getPoseCNN(components[2])
         else:
 
-            models["pose_encoder"] = networks.getEncoder(model_mode[2])
-            models["pose"] = networks.getPoseDecoder(model_mode[3])
+            models["pose_encoder"] = networks.getEncoder(components[2])
+            models["pose"] = networks.getPoseDecoder(components[3])
 
         # encoder
 
@@ -115,3 +130,92 @@ def model_init(model_opt):
         print('optimizer params from scratch')
 
     return models, model_optimizer, model_lr_scheduler
+
+
+def dataset_init(opts):
+
+    # datasets setting
+
+
+    #global
+
+    feed_height = opts['feed_height']
+    feed_width = opts['feed_width']
+    dataset_opt = opts['dataset']
+    frame_sides = opts['frame_sides']
+    scales = opts['scales']
+
+
+    # local
+    datasets_dict = {"kitti": KITTIRAWDataset,
+                     # "kitti_odom": KITTIOdomDataset,
+                     "mc": MCDataset,
+                     "custom_mono": CustomMonoDataset}
+
+    if dataset_opt['type'] in datasets_dict.keys():
+        dataset = datasets_dict[dataset_opt['type']]  # 选择建立哪个类，这里kitti，返回构造函数句柄
+    else:
+        dataset = CustomMonoDataset
+
+    split_path = Path(dataset_opt['split']['path'])
+    train_path = split_path / dataset_opt['split']['train_file']
+    val_path = split_path / dataset_opt['split']['val_file']
+    data_path = Path(dataset_opt['path'])
+
+
+
+    batch_size = dataset_opt['batch_size']
+    num_workers = dataset_opt['num_workers']
+
+    train_filenames = readlines(train_path)
+    val_filenames = readlines(val_path)
+    img_ext = '.png'
+
+
+
+    # train loader
+    train_dataset = dataset(  # KITTIRAWData
+        data_path=data_path,
+        filenames=train_filenames,
+        height=feed_height,
+        width=feed_width,
+        frame_sides=frame_sides,  # kitti[0,-1,1],mc[-1,0,1]
+        num_scales=len(scales),
+        mode="train"
+        # img_ext='.png'
+    )
+    train_loader = DataLoader(  # train_datasets:KITTIRAWDataset
+        dataset=train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+        pin_memory=True,
+        drop_last=True
+    )
+    # val loader
+    val_dataset = dataset(
+        data_path=data_path,
+        filenames=val_filenames,
+        height=feed_height,
+        width=feed_width,
+        frame_sides=frame_sides,
+        num_scales=len(scales),
+        mode="val",
+        img_ext=img_ext)
+
+    val_loader = DataLoader(
+        dataset=val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=True,
+        drop_last=True)
+
+    print("Using split:{}, {}, {}".format(split_path,
+                                          dataset_opt['split']['train_file'],
+                                          dataset_opt['split']['val_file']
+                                          ))
+    print("There are {:d} training items and {:d} validation items".format(
+        len(train_dataset), len(val_dataset)))
+
+    return train_loader, val_loader

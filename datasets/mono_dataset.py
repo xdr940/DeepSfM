@@ -1,15 +1,12 @@
 
-from __future__ import absolute_import, division, print_function
 
-import os
-import random
 import numpy as np
-import copy
-from PIL import Image  # using pillow-simd for increased speed
-
+from torchvision import transforms
+import random
 import torch
 import torch.utils.data as data
-from torchvision import transforms
+from PIL import Image  # using pillow-simd for increased speed
+import PIL.Image as pil
 
 
 def pil_loader(path):
@@ -19,9 +16,9 @@ def pil_loader(path):
         with Image.open(f) as img:
             return img.convert('RGB')
 
-
 class MonoDataset(data.Dataset):
     """Superclass for monocular dataloaders
+
     Args:
         data_path
         filenames
@@ -35,24 +32,24 @@ class MonoDataset(data.Dataset):
     def __init__(self,
                  data_path,
                  filenames,
-                 height,
-                 width,
+                 height,#feed height
+                 width,#feed width
                  frame_sides,
                  num_scales,
-                 is_train=False,
+                 mode="train",
                  img_ext='.png'):
         super(MonoDataset, self).__init__()
 
         self.data_path = data_path
         self.filenames = filenames#list , like '2011_09_26/2011_09_26_drive_0001_sync 1 l'
-        self.height = height
+        self.height = height#
         self.width = width
         self.num_scales = num_scales
         self.interp = Image.ANTIALIAS
 
         self.frame_sides = frame_sides
 
-        self.is_train = is_train#unsuper train or evaluation
+        self.mode = mode#unsuper train or evaluation
         self.img_ext = img_ext
 
         self.loader = pil_loader
@@ -66,60 +63,71 @@ class MonoDataset(data.Dataset):
             self.saturation = (0.8, 1.2)
             self.hue = (-0.1, 0.1)
             transforms.ColorJitter.get_params(
-                self.brightness, self.contrast, self.saturation, self.hue)
+                self.brightness,
+                self.contrast,
+                self.saturation,
+                self.hue
+            )
         except TypeError:
             self.brightness = 0.2
             self.contrast = 0.2
             self.saturation = 0.2
             self.hue = 0.1
 
-        self.resize = {}
+        self.resizor = {}
         for i in range(self.num_scales):
             s = 2 ** i
-            self.resize[i] = transforms.Resize((self.height // s, self.width // s),
+            self.resizor[i] = transforms.Resize((self.height // s, self.width // s),
                                                interpolation=self.interp)
 
         self.load_depth = self.check_depth()
+        if mode == "prediction":
+            self.load_depth=False
         #self.load_depth = False
+
 
 
     #private
     def preprocess(self, inputs, color_aug):
         """Resize colour images to the required scales and augment if required
+
         We create the color_aug object in advance and apply the same augmentation to all
         images in this item. This ensures that all images input to the pose network receive the
         same augmentation.
         """
         for k in list(inputs):
-            frame = inputs[k]
             if "color" in k:
-                n, im, i = k
-                for i in range(self.num_scales):
-                    inputs[(n, im, i)] = self.resize[i](inputs[(n, im, i - 1)])
-
+                type, side, _ = k
+                for scale in range(self.num_scales):
+                    inputs[(type, side, scale)] = self.resizor[scale](inputs[(type, side, scale - 1)])
         for k in list(inputs):
             f = inputs[k]
             if "color" in k:
-                n, im, i = k
-                inputs[(n, im, i)] = self.to_tensor(f)
-                inputs[(n + "_aug", im, i)] = self.to_tensor(color_aug(f))
+                type, side, scale= k
+                inputs[(type, side, scale)] = self.to_tensor(f)
+                if scale<=0 and color_aug:
+                    inputs[(type + "_aug", side, scale)] = self.to_tensor(color_aug(f))
 
     def __len__(self):
         return len(self.filenames)
 
     def __getitem__(self, index):
-        """Returns a single training item(inputs ) from the dataset as a dictionary.
+        """Returns a single training item(inputs ) from the datasets as a dictionary.
+
         Values correspond to torch tensors.
         Keys in the dictionary are either strings or tuples:
+
             ("color", <frame_id>, <scale>)          for raw colour images,
             ("color_aug", <frame_id>, <scale>)      for augmented colour images,
             ("K", scale) or ("inv_K", scale)        for camera intrinsics,
             "stereo_T"                              for camera extrinsics, and
             "depth_gt"                              for ground truth depth maps.
+
         <frame_id> is either:
             an integer (e.g. 0, -1, or 1) representing the temporal step relative to 'index',
         or
             "s" for the opposite image in the stereo pair.
+
         <scale> is an integer representing the scale of the image relative to the fullsize image:
             -1      images at native resolution as loaded from disk#1242x362
             0       images resized to (self.width,      self.height     )#640x192
@@ -129,64 +137,62 @@ class MonoDataset(data.Dataset):
         """
         inputs = {}
 
-        do_color_aug = self.is_train and random.random() > 0.5
-        do_flip = self.is_train and random.random() > 0.5
+        do_color_aug = self.mode=="train" and random.random() > 0.5
+        do_flip = self.mode=="train" and random.random() > 0.5
+        do_rotation = self.mode=="train" and random.random()>0.5
 
-        line = self.filenames[index].split()
-        folder = line[0]#pic_path
-
-
-        if len(line) == 3 or len(line)==2:# 2 for monocular files struct
-            frame_index = int(line[1])
-        else:
-            frame_index = 0
+        split_line = self.filenames[index]
 
 
-
-        if len(line) == 3:
-            side = line[2]
-        else:
-            side = None
-
-
-
-        for i in self.frame_sides:
-            inputs[("color", i, -1)] = self.get_color(folder, frame_index + i, side, do_flip)#inputs得到scale == -1的前 中后三帧
-
-
+        #img sides
+        for side in self.frame_sides:
+            try:
+                inputs[("color", side, -1)] = self.get_color(split_line, side,  do_flip)  # inputs得到scale == -1的前 中后三帧
+            except:
+                # os.system('clear')
+                # print(split_line)
+                print('frame load failed:{},{}'.format(split_line,side))
 
         # adjusting intrinsics to match each scale in the pyramid
-        for scale in range(self.num_scales):
-            K = self.K.copy()
 
-            K[0, :] *= self.width // (2 ** scale)
-            K[1, :] *= self.height // (2 ** scale)
+        if self.mode=="train" or self.mode=="val":
+            for scale in range(self.num_scales):
+                K = self.K.copy()
 
-            inv_K = np.linalg.pinv(K)
+                K[0, :] *= self.width // (2 ** scale)
+                K[1, :] *= self.height // (2 ** scale)
 
-            inputs[("K", scale)] = torch.from_numpy(K)
-            inputs[("inv_K", scale)] = torch.from_numpy(inv_K)
+                inv_K = np.linalg.pinv(K)
+
+                inputs[("K", scale)] = torch.from_numpy(K)
+                inputs[("inv_K", scale)] = torch.from_numpy(inv_K)
+
+            color_aug=None
+            if do_color_aug:
+                color_aug = transforms.ColorJitter.get_params(#对图像进行稍微处理，aug 但是要保证深度一致
+                    self.brightness, self.contrast, self.saturation, self.hue)
 
 
-
-        if do_color_aug:
-            color_aug = transforms.ColorJitter.get_params(#对图像进行稍微处理，aug 但是要保证深度一致
-                self.brightness, self.contrast, self.saturation, self.hue)
-        else:
-            color_aug = (lambda x: x)
+            else:# self.mode=="val":
+                color_aug = (lambda x: x)
+        else: #test
+            color_aug=None
 
         self.preprocess(inputs, color_aug)#scalse,aug generate to 38
 
 
 
+
         for i in self.frame_sides:
-            del inputs[("color", i, -1)]
-            del inputs[("color_aug", i, -1)]
+            if ("color", i, -1) in inputs.keys():
+                del inputs[("color", i, -1)]#删除原分辨率图
+            if ("color_aug", i, -1) in inputs.keys():
+                del inputs[("color_aug", i, -1)]#删除原分辨率曾广图
 
 
 
         if self.load_depth:
-            depth_gt = self.get_depth(folder, frame_index, side, do_flip)
+            depth_gt = self.get_depth(split_line, 0,  do_flip)
             inputs["depth_gt"] = np.expand_dims(depth_gt, 0)
             inputs["depth_gt"] = torch.from_numpy(inputs["depth_gt"].astype(np.float32))
 
@@ -195,14 +201,13 @@ class MonoDataset(data.Dataset):
 
 
         return inputs
+        # 多态, 继承类用
 
-
-    #多态
-    def get_color(self, folder, frame_index, side, do_flip):
+    def get_color(self, line, side, do_flip):
         raise NotImplementedError
 
     def check_depth(self):
         raise NotImplementedError
 
-    def get_depth(self, folder, frame_index, side, do_flip):
+    def get_depth(self, line, side, do_flip):
         raise NotImplementedError

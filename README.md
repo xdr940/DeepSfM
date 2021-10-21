@@ -1,4 +1,53 @@
-### I/O data structure
+# DeepSfM
+
+一个关于深度估计的深度网络模型的训练验证、测试框架，源码来自monodepth2改进。
+包含有tensorboard，终端进度条等功能。定期保存模型到logdir文件夹。
+通过.yaml文件来更改配置，灵活调整, 并在训练时将配置文件连同。
+
+
+## 文件夹介绍
+---
+
+- total
+```
+./
+	|-datasets
+	|-networks
+	|-scripts
+	|-test
+	|-utils
+```
+
+- 	datasets
+
+主要是关于kitti\mn\custom-mono等数据集的载入,以及dataloader
+```bash
+
+data.Dataset ->
+	mono_dataset_v2/MonoDataset - > 
+		custom_mono/CustomMono
+		kitti_dataset_v2/KITTIRAWDataset
+		mc_dataset/MCDataset
+
+
+```
+- networks //框架用到的模型
+
+-  scripts //框架涉及到的训练,验证, 评估, 推断等
+
+-  data_prep_scripts//关于数据单独处理部分的脚本
+
+
+
+
+
+
+
+## I/O data structure
+
+---
+
+通过tensor数据的统一管理, 减少模糊与歧义
 
 ```apex
 
@@ -31,32 +80,42 @@ outputs #34 dict
 	
 
 
-### framework modes
- - shared
- - ind
- - spv
- - rebuild
+## 部分参数说明
 
-### model mode
+**1. paradigm**
+模型包括多种训练范式, 如下
+
+ - shared //共用编码器方式
+ - ind	//各自任务独立编码器
+ - spv	//有监督模式
+ - rebuild	//编码解码同一映射
+
+**2. components**
+
+
  __Encoder(DepthEncoder)__ 
- model_mode[0]
  
-- 1in
-- 3in
-- 3din
+ components[0]
+ 
+- 1in	//常规的resnet18, 图像输入
+- 3in	//层前面改成直接concat, 三帧输入
+- 3din	//层前面扩充通道, 三帧输入
 
 __DepthDecoder__
- model_mode[1]
+ 
+ components[1]
 
 - None
 
-__PoseEncoder__[2]
+__PoseEncoder__
+
+components[2]
 
 - 3din
 - c3d
 
 __PoseDecoder__
- model_mode[3]
+ components[3]
 
 - fin-2out 
 - fin-1out
@@ -67,8 +126,8 @@ __PoseDecoder__
 	
 
 
-### evaluation pipline
-
+## evaluation pipline
+---
 
 
 ```apex

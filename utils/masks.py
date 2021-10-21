@@ -1,6 +1,6 @@
 
 import torch
-from .erodila import rectify
+from utils.img_process import rectify
 def float8or(t1,t2):
 
     return ((t1 + t2) > 0).float()

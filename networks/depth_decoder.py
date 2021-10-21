@@ -138,8 +138,8 @@ class DepthDecoder2(nn.Module):
         else:
             return ret[0]
 
-def getDepthDecoder(model_mode=1,mode='train'):
-    if model_mode =='default':
+def getDepthDecoder(components=1,mode='train'):
+    if components =='default':
         model = DepthDecoder2(
             num_ch_enc=[64,64,128,256,512],
             scales=[0,1,2,3],

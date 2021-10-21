@@ -8,7 +8,7 @@ import PIL.Image as pil
 from path import Path
 import matplotlib.pyplot as plt
 
-from datasets.mono_dataset_v2 import MonoDataset
+from datasets.mono_dataset import MonoDataset
 import random
 from PIL import Image  # using pillow-simd for increased speed
 

@@ -52,8 +52,8 @@ def model_init(model_path,mode):
     decoder_path = model_path['depth']
 
     #model init
-    encoder = getEncoder(model_mode=mode)
-    depth_decoder = getDepthDecoder(model_mode='default',mode='test')
+    encoder = getEncoder(components=mode)
+    depth_decoder = getDepthDecoder(components='default',mode='test')
 
     #encoder dict updt
     encoder_dict = torch.load(encoder_path)

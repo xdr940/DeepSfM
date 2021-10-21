@@ -1,53 +1,71 @@
-# Copyright Niantic 2019. Patent Pending. All rights reserved.
-#
-# This software is licensed under the terms of the Monodepth2 licence
-# which allows for non-commercial use only, the full terms of which are made
-# available in the LICENSE file.
+
 
 from __future__ import absolute_import, division, print_function
 
-import os
 import skimage.transform
 import numpy as np
 import PIL.Image as pil
+from path import Path
+import os
 
-from kitti_utils import generate_depth_map
+from PIL import Image  # using pillow-simd for increased speed
+
+from utils.kitti_utils import generate_depth_map
+
 from datasets.mono_dataset import MonoDataset
 
 
-class KITTIDataset(MonoDataset):
-    """Superclass for different types of KITTI dataset loaders
-    """
-    def __init__(self, *args, **kwargs):
-        super(KITTIDataset, self).__init__(*args, **kwargs)
+def relpath_split(relpath):
+    relpath = relpath.split('/')
+    date=relpath[0]
+    scene = relpath[1]
+    camera = relpath[2]
+    #data
+    frame = relpath[4]
+    frame = frame.replace('.png', '')
+    return date,scene,camera,frame
+
+def pil_loader(path):
+    # open path as file to avoid ResourceWarning
+    # (https://github.com/python-pillow/Pillow/issues/835)
+    with open(path, 'rb') as f:
+        with Image.open(f) as img:
+            return img.convert('RGB')
+#
+class KITTIRAWDataset(MonoDataset):
+    def __init__(self,*args,**kwargs):
+        super(KITTIRAWDataset,self).__init__(*args,**kwargs)
         self.K = np.array([[0.58, 0, 0.5, 0],
                            [0, 1.92, 0.5, 0],
                            [0, 0, 1, 0],
                            [0, 0, 0, 1]], dtype=np.float32)
 
-        #self.K = np.array([[0.008, 0, 0.5, 0],
-        #                   [0, 0.002, 0.5, 0],
-        #                   [0, 0, 1, 0],
-        #                   [0, 0, 0, 1]], dtype=np.float32)
+        self.img_ext = '.png'#kitti default
+        self.full_res_shape = [1242, 375]
+        self.camera_num_map = {"2": 2, "3": 3, "image_02": 2, "image_03": 3}
 
-        self.full_res_shape = (1242, 375)
-        self.side_map = {"2": 2, "3": 3, "l": 2, "r": 3}
 
-    #对父类重写
+
+
     def check_depth(self):
-        line = self.filenames[0].split()
-        scene_name = line[0]
-        frame_index = int(line[1])
 
+        date,scene,sensor,frame = relpath_split(self.filenames[0])
+        sensor = 'velodyne_points'
         velo_filename = os.path.join(
-            self.data_path,
-            scene_name,
-            "velodyne_points/data/{:010d}.bin".format(int(frame_index)))
+            date,
+            scene,
+            sensor,
+            'data',
+            "{:010d}.bin".format(int(frame)))
 
-        return os.path.isfile(velo_filename)
 
-    def get_color(self, folder, frame_index, side, do_flip):
-        color = self.loader(self.get_image_path(folder, frame_index, side))#父类调用子类的方法
+        depth_filename =Path(self.data_path)/velo_filename
+
+        return depth_filename.exists()
+
+    def get_color(self, line, side, do_flip):
+        path =self.__get_image_path__(line, side)
+        color = self.loader(path)
 
         if do_flip:
             color = color.transpose(pil.FLIP_LEFT_RIGHT)
@@ -55,29 +73,28 @@ class KITTIDataset(MonoDataset):
         return color
 
 
-class KITTIRAWDataset(KITTIDataset):
-    """KITTI dataset which loads the original velodyne depth maps for ground truth
-    """
-    def __init__(self, *args, **kwargs):
-        super(KITTIRAWDataset, self).__init__(*args, **kwargs)
 
+    def get_depth(self, line, side,  do_flip):
 
-
-    def get_image_path(self, folder, frame_side, side):
-        f_str = "{:010d}{}".format(frame_side, self.img_ext)
-        image_path = os.path.join(
-            self.data_path, folder, "image_0{}/data".format(self.side_map[side]), f_str)
-        return image_path
-
-    def get_depth(self, folder, frame_side, side, do_flip):
-        calib_path = os.path.join(self.data_path, folder.split("/")[0])
+        date, scene, sensor, frame = relpath_split(line)
+        reframe = str(int(frame) + side)
 
         velo_filename = os.path.join(
-            self.data_path,
-            folder,
-            "velodyne_points/data/{:010d}.bin".format(int(frame_side)))
+            date,
+            scene,
+            "velodyne_points",
+            'data',
+            "{:010d}.bin".format(int(reframe)))
 
-        depth_gt = generate_depth_map(calib_path, velo_filename, self.side_map[side])
+        depth_path = Path(self.data_path) / velo_filename
+
+        calib_path = os.path.join(
+            self.data_path,
+            date
+        )
+
+        depth_gt = generate_depth_map(calib_path, depth_path, self.camera_num_map[sensor])
+
         depth_gt = skimage.transform.resize(
             depth_gt, self.full_res_shape[::-1], order=0, preserve_range=True, mode='constant')
 
@@ -87,52 +104,56 @@ class KITTIRAWDataset(KITTIDataset):
         return depth_gt
 
 
-class KITTIOdomDataset(KITTIDataset):
-    """KITTI dataset for odometry training and testing
-    """
-    def __init__(self, *args, **kwargs):
-        super(KITTIOdomDataset, self).__init__(*args, **kwargs)
+    def __get_image_path__(self, line, side):
+        date, scene, sensor, frame = relpath_split(line)
 
-    def get_image_path(self, folder, frame_index, side):
-        f_str = "{:06d}{}".format(frame_index, self.img_ext)
-        image_path = os.path.join(
-            self.data_path,
-            "sequences/{:02d}".format(int(folder)),
-            "image_{}".format(self.side_map[side]),
-            f_str)
+
+
+        reframe = "{:010d}".format(int(frame)+side)
+        path = os.path.join(
+            date,
+            scene,
+            sensor,
+            'data',
+            reframe
+        )
+        image_path = Path(self.data_path)/ path+'.png'
+
+        # #3帧图像测试需要, 主要是针对eigen split那些official eval
+        # if not Path.exists(image_path) and int(frame)+side < 0:
+        #     path = os.path.join(
+        #         date,
+        #         scene,
+        #         sensor,
+        #         'data',
+        #         "{:010d}".format(0)
+        #     )
+        # elif not Path.exists(image_path) and int(frame)+side > 0:
+        #     path = os.path.join(
+        #         date,
+        #         scene,
+        #         sensor,
+        #         'data',
+        #         "{:010d}".format(int(frame))
+        #     )
+        #
+        # image_path = Path(self.data_path) / path + '.png'
         return image_path
 
 
-class KITTIDepthDataset(KITTIDataset):
-    """KITTI dataset which uses the updated ground truth depth maps
-    """
-    def __init__(self, *args, **kwargs):
-        super(KITTIDepthDataset, self).__init__(*args, **kwargs)
+    def __get_depth_path__(self, line, side):
+        date, scene, sensor, frame = relpath_split(self.filenames[0])
+        reframe = str(int(frame)+side)
 
-    def get_image_path(self, folder, frame_index, side):
-        f_str = "{:010d}{}".format(frame_index, self.img_ext)
-        image_path = os.path.join(
-            self.data_path,
-            folder,
-            "image_0{}/data".format(self.side_map[side]),
-            f_str)
-        return image_path
+        velo_filename = os.path.join(
+            date,
+            scene,
+            "velodyne_points",
+            'data',
+            "{:010d}.bin".format(int(reframe)))
 
-    def get_depth(self, folder, frame_index, side, do_flip):
-        f_str = "{:010d}.png".format(frame_index)
-        depth_path = os.path.join(
-            self.data_path,
-            folder,
-            "proj_depth/groundtruth/image_0{}".format(self.side_map[side]),
-            f_str)
+        depth_path = Path(self.data_path) / line
+        return depth_path
 
-        depth_gt = pil.open(depth_path)
-        depth_gt = depth_gt.resize(self.full_res_shape, pil.NEAREST)
-        depth_gt = np.array(depth_gt).astype(np.float32) / 256
-
-        if do_flip:
-            depth_gt = np.fliplr(depth_gt)
-
-        return depth_gt
 
 

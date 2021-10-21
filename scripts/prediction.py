@@ -79,8 +79,8 @@ def model_init(model_path,mode):
     decoder_path = model_path['depth']
 
     #model init
-    encoder = getEncoder(model_mode=mode)
-    depth_decoder = getDepthDecoder(model_mode=1,mode='test')
+    encoder = getEncoder(components=mode)
+    depth_decoder = getDepthDecoder(components=1,mode='test')
 
     #encoder dict updt
     encoder_dict = torch.load(encoder_path)
@@ -162,12 +162,12 @@ def prediction(opts):
     data_path = Path(opts['dataset']['path'])
     lines = Path(opts['dataset']['split']['path'])/opts['dataset']['split']['test_file']
     model_path = opts['model']['load_paths']
-    model_mode = opts['model']['mode']
+    components = opts['model']['mode']
     frame_sides = opts['frame_sides']
     out_dir_base = Path(opts['out_dir_base'])
 
     # frame_prior,frame_now,frame_next =  opts['frame_sides']
-    encoder,decoder = model_init(model_path,mode=model_mode)
+    encoder,decoder = model_init(model_path,mode=components)
     file_names = readlines(lines)
 
     print('-> dataset_path:{}'.format(data_path))
