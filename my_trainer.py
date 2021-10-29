@@ -94,7 +94,9 @@ class Trainer:
 
 
         #args assert
-        self.device = torch.device(options['device'])
+        self.device=[]
+        for dev in options['device']:
+            self.device.append( torch.device(dev))
         self.models, self.model_optimizer,self.model_lr_scheduler = model_init(options)
         self.train_loader, self.val_loader = dataset_init(options)
 
@@ -126,7 +128,7 @@ class Trainer:
         #self.layers
         self.layers={}
         self.layers['ssim'] = SSIM()
-        self.layers['ssim'].to(self.device)
+        self.layers['ssim'].to(self.device[0])#
 
         self.layers['back_proj_depth']={}
         self.layers['project_3d']={}
@@ -139,11 +141,11 @@ class Trainer:
             h = options['feed_height'] // (2 ** scale)
             w = options['feed_width'] // (2 ** scale)
 
-            self.layers['back_proj_depth'][scale] = BackprojectDepth(options['dataset']['batch_size'], h, w)
-            self.layers['back_proj_depth'][scale].to(self.device)
+            self.layers['back_proj_depth'][scale] = BackprojectDepth(options['dataset']['batch_size']*len(self.device), h, w)
+            self.layers['back_proj_depth'][scale].to(self.device[0])
 
-            self.layers['project_3d'][scale] = Project3D(options['dataset']['batch_size'], h, w)
-            self.layers['project_3d'][scale].to(self.device)
+            self.layers['project_3d'][scale] = Project3D(options['dataset']['batch_size']*len(self.device), h, w)
+            self.layers['project_3d'][scale].to(self.device[0])
 
         #compute_depth_metrics
 
@@ -205,7 +207,7 @@ class Trainer:
             reprojection_loss = reprojection_losses
 
             # add random numbers to break ties# 花书p149 向输入添加方差极小的噪声等价于 对权重施加范数惩罚
-            identity_reprojection_loss += torch.randn(identity_reprojection_loss.shape).to(self.device) * 0.00001
+            identity_reprojection_loss += torch.randn(identity_reprojection_loss.shape).to(self.device[0]) * 0.00001
             # erro_maps = torch.cat((identity_reprojection_loss, reprojection_loss), dim=1)  # b4hw
 
             # --------------------------------------------------------------
@@ -361,7 +363,7 @@ class Trainer:
 
         #device
         for key, ipt in inputs.items():
-            inputs[key] = ipt.to(self.device)
+            inputs[key] = ipt.to(self.device[0])
 
 
         outputs={}
@@ -404,6 +406,7 @@ class Trainer:
             losses = self.compute_losses_spv(inputs, outputs)
 
         elif model_paradigm == "rebuild":
+            #TODO
             pass
 
         if model_paradigm in ['shared','ind']:

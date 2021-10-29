@@ -48,7 +48,6 @@ def reframe(component,inputs,frame_sides,key='color_aug'):
 def model_init(opts):
     # global
     device = opts['device']
-    scales = opts['scales']
 
 
     # local
@@ -84,11 +83,12 @@ def model_init(opts):
 
         # encoder
 
-
-
+    # 声明所有可用设备
+    for name in models.keys():
+        models[name] = torch.nn.DataParallel(models[name], device_ids=list(range(len(device))))
     # model device
     for k, v in models.items():
-        models[k].to(device)
+        models[k].to(device[0])
 
     # params to train
     parameters_to_train = []
@@ -129,6 +129,8 @@ def model_init(opts):
     else:
         print('optimizer params from scratch')
 
+ 
+
     return models, model_optimizer, model_lr_scheduler
 
 
@@ -145,7 +147,7 @@ def dataset_init(opts):
     frame_sides = opts['frame_sides']
     scales = opts['scales']
 
-
+    device = opts['device']
     # local
     datasets_dict = {"kitti": KITTIRAWDataset,
                      # "kitti_odom": KITTIOdomDataset,
@@ -186,7 +188,7 @@ def dataset_init(opts):
     )
     train_loader = DataLoader(  # train_datasets:KITTIRAWDataset
         dataset=train_dataset,
-        batch_size=batch_size,
+        batch_size=batch_size*len(device),
         shuffle=True,
         num_workers=num_workers,
         pin_memory=True,
@@ -205,7 +207,7 @@ def dataset_init(opts):
 
     val_loader = DataLoader(
         dataset=val_dataset,
-        batch_size=batch_size,
+        batch_size=batch_size*len(device),
         shuffle=False,
         num_workers=num_workers,
         pin_memory=True,

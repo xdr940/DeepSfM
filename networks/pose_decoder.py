@@ -74,31 +74,48 @@ class PoseDecoder2(nn.Module):
         self.num_ch_enc = num_ch_enc
         self.out_num_poses = out_num_poses
 
-        self.convs = OrderedDict()
-        self.convs[("squeeze")] = nn.Conv2d(self.num_ch_enc[-1], 256, 1)
-        self.convs[("pose", 0)] = nn.Conv2d(256, 256, 3, stride, 1)
-        self.convs[("pose", 1)] = nn.Conv2d(256, 256, 3, stride, 1)
-        self.convs[("pose", 2)] = nn.Conv2d(256, 6 * out_num_poses, 1)
+        # self.convs = OrderedDict()
+        # self.convs[("squeeze")] = nn.Conv2d(self.num_ch_enc[-1], 256, 1)
+        # self.convs[("pose", 0)] = nn.Conv2d(256, 256, 3, stride, 1)
+        # self.convs[("pose", 1)] = nn.Conv2d(256, 256, 3, stride, 1)
+        # self.convs[("pose", 2)] = nn.Conv2d(256, 6 * out_num_poses, 1)
+
+        self.convs = nn.ModuleDict(
+            {"squeeze":nn.Conv2d(self.num_ch_enc[-1], 256, 1),
+             "pose,0":nn.Conv2d(256, 256, 3, stride, 1),
+             "pose,1": nn.Conv2d(256, 256, 3, stride, 1),
+             "pose,2":nn.Conv2d(256, 6 * out_num_poses, 1)
+
+             }
+
+        )
 
         self.relu = nn.ReLU()
 
-        self.net = nn.ModuleList(list(self.convs.values()))
+        # self.net = nn.ModuleList(list(self.convs.values()))
 
     def forward(self, *input_features):
-
+        # print(" in pose decoder forwardpass:{}".format(self.convs[("squeeze")].weight.device))
         last_features = input_features[-1]
 
+        # f = self.convs["squeeze"](last_features)
         f = self.convs["squeeze"](last_features)
+
         fout = self.relu(f)
 
+        x = self.convs["pose,0"](fout)
 
-        x = self.convs[("pose", 0)](fout)
+        # x = self.convs[("pose", 0)](fout)
         x = self.relu(x)
 
-        x = self.convs[("pose", 1)](x)
+        # x = self.convs[("pose", 1)](x)
+        x = self.convs["pose,1"](x)
+
         x = self.relu(x)
 
-        x = self.convs[("pose", 2)](x)
+        # x = self.convs[("pose", 2)](x)
+        x = self.convs["pose,2"](x)
+
 
 
         out = x.mean(3).mean(2)

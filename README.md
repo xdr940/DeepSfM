@@ -1,8 +1,16 @@
 # DeepSfM
 
-一个关于深度估计的深度网络模型的训练验证、测试框架，源码来自monodepth2改进。
-包含有tensorboard，终端进度条等功能。定期保存模型到logdir文件夹。
-通过.yaml文件来更改配置，灵活调整, 并在训练时将配置文件连同。
+DeepSfM是一个关于深度估计网络模型的训练验证、测试框架，源码来自monodepth2改进。
+- 网络框架包含有tensorboard，终端进度条等功能,可以定期保存模型到logdir文件夹。
+- 另外,还通过.yaml文件来更改配置，灵活调整, 并在训练时将配置文件保存到logdir。
+- 框架可以具有统一输入输出结构,即`inputs, outputs`来承载复杂的模型IO以及中间变量.
+- 可以多GPU训练.
+- 多种范式, 多种单元结合.
+
+
+DeepSfM is a depth estimation code-framework of training, validation and test, which based on monodepth2.
+It attached with several function such as tensorboard, terminal progress bar, logdir etc.
+
 
 
 ## 文件夹介绍
@@ -32,7 +40,15 @@ data.Dataset ->
 
 ```
 - networks //框架用到的模型
+  
+  这里描述下layers的嵌套情况
 
+  nn.xxPad
+  nn.conv2d
+	->conv3x3
+	->nn.ELU
+		->convBlock
+			->
 -  scripts //框架涉及到的训练,验证, 评估, 推断等
 
 -  data_prep_scripts//关于数据单独处理部分的脚本
