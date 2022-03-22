@@ -163,7 +163,9 @@ def dataset_init(opts):
     train_path = split_path / dataset_opt['split']['train_file']
     val_path = split_path / dataset_opt['split']['val_file']
     data_path = Path(dataset_opt['path'])
-
+    if not data_path.exists():
+        print("data path error")
+        exit(-1)
 
 
     batch_size = dataset_opt['batch_size']
