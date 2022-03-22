@@ -1,0 +1,45 @@
+model:
+  paradigm: 'ind' #shared,ind,spv,rebuild
+  components: ['1in','default','3din','fin-2out'] #[encoder,depth,posecnn]
+  load_paths:
+    depth_encoder: '/home/roit/models/torchvision/official/resnet18-5c106cde.pth'
+    pose_encoder: '/home/roit/models/torchvision/official/resnet18-5c106cde.pth'
+  lr: 0.0001
+  scheduler_step_size: 6
+  optimizer_path: null
+
+dataset:
+  type: 'custom_mono'
+  path: '/home/roit/970evop6/datasets/fpv_feild'
+  split:
+    path: '/home/roit/datasets/splits/fpv_feild_lite1000'
+    train_file: 'train.txt'
+    val_file: 'val.txt'
+  num_workers: 2
+  batch_size: 8
+  full_width: null
+  full_height: null
+
+
+
+feed_height: 128 #same with feed height
+feed_width: 192
+
+scales: [0,1,2,3]
+disparity_smoothness: 0.1 #set manual
+
+#device: ["cuda:0","cuda:1"]
+device: ["cuda:0"]
+
+# device: "cuda:1"
+
+frame_sides: [-1,0,1]
+
+log_dir: '/home/roit/models/DeepSfM/fpv'
+tb_log_frequency: 12
+tb_log_setting: {'1000':10,'10000':100,'100000':100}
+epoch: 15
+model_first_save: 10
+weights_save_frequency: 1
+min_depth: 0.1
+max_depth: 100.0
