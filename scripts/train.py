@@ -8,7 +8,7 @@ from __future__ import absolute_import, division, print_function
 
 from utils.yaml_wrapper import YamlHandler
 import argparse
-from my_trainer import Trainer
+from trainer import Trainer
 
 
 
@@ -20,6 +20,6 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="DeepSfM")
-    parser.add_argument("--settings", default='./opts/fpv1.yaml')
+    parser.add_argument("--settings", default='./configs/fpv1.yaml')
     args = parser.parse_args()
     main(args)
