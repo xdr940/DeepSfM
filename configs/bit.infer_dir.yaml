@@ -1,0 +1,28 @@
+model:
+  paradigm: 'ind' #shared,ind,spv,rebuild
+  components: ['1in','default','3din','fin-2out'] #[encoder,depth,posecnn]
+  load_paths:
+    depth_encoder: '/home/roit/models/DeepSfM/mc/weights_14/depth_encoder.pth'
+    depth: '/home/roit/models/DeepSfM/mc/weights_14/depth.pth'
+dataset:
+  type: 'custom_mono'
+  path: '/home/roit/datasets/mc_test'
+  num_workers: 1
+  batch_size: 1
+  full_width: 1024
+  full_height: 768
+
+dump_path: '/home/roit/datasets/mc_pred'
+
+feed_height: 128 #same with feed height
+feed_width: 192
+
+disparity_smoothness: 0.1 #set manual
+
+device: ["cuda:0"]
+frame_sides: [-1,0,1]
+scales: [0,1,2,3]
+
+
+min_depth: 0.1
+max_depth: 100.0
