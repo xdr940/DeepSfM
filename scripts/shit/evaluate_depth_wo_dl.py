@@ -20,7 +20,7 @@ from utils.yaml_wrapper import YamlHandler
 from utils.official import compute_errors
 from utils.assist import reframe
 import matplotlib.pyplot as plt
-from utils.official import np_normalize_image
+
 cv2.setNumThreads(0)  # This speeds up evaluation 5x on our unix systems (OpenCV 3.3.1)
 
 
@@ -97,14 +97,7 @@ def evaluate(opts):
     feed_width = opts['feed_width']
     full_width = opts['dataset']['full_width']
     full_height = opts['dataset']['full_height']
-
-    out_dir = Path(opts['out_dir'])
-    out_dir.mkdir_p()
-    sub_dirs = opts['sub_dirs']
-    for item in sub_dirs:
-        (out_dir/item).mkdir_p()
-
-    # metric_mode = opts['metric_mode']
+    metric_mode = opts['metric_mode']
 
 
 
@@ -126,6 +119,7 @@ def evaluate(opts):
     for k,v in opts['model']['load_paths'].items():
         print('\t'+str(v))
 
+    print("-> metrics mode: {}".format(metric_mode))
     print("-> data split:{}".format(lines))
     print('-> total:{}'.format(len(file_names)))
 
@@ -148,16 +142,6 @@ def evaluate(opts):
             num_scales=1,
             mode="test"
         )
-    elif opts['dataset']['type']=='custom_mono':
-        dataset = datasets.CustomMonoDataset(
-            data_path=data_path,
-            filenames=file_names,
-            height=feed_height,
-            width=feed_width,
-            frame_sides=frame_sides,
-            num_scales=1,
-            mode='test'
-        )
 
     dataloader = DataLoader(dataset,
                             batch_size=batch_size,
@@ -168,44 +152,92 @@ def evaluate(opts):
     pred_depths=[]
     gt_depths = []
     disps = []
-    idx=0
     for data in tqdm(dataloader):
 
+        image =  cv2.imread('/home/roit/datasets/nyudepthv2/img/0001.jpg')
+        image = cv2.resize(image,(384,288))
+        image=np.transpose(image,[2,0,1])
+        image = torch.tensor(image).cuda()/255.
+        image = image.unsqueeze(0)
 
-        input_color = reframe(encoder_mode,data,frame_sides=frame_sides,key='color')
-        input_color = input_color.cuda()
+        # input_color = reframe(encoder_mode,data,frame_sides=frame_sides,key='color')
+        # input_color = input_color.cuda()
 
 
-        features = encoder(input_color)
+
+        features = encoder(image)
         disp = decoder(*features)
 
 
 
-        # depth_gt = data['depth_gt']
+        depth_gt = data['depth_gt']
 
         pred_disp, pred_depth = disp_to_depth(disp,min_depth=MIN_DEPTH, max_depth=MAX_DEPTH)
         #pred_depth = disp2depth(disp)
 
+        pred_depth = pred_depth.cpu()[:,0].numpy()
+        depth_gt = depth_gt.cpu()[:,0].numpy()
+
+        pred_depths.append(pred_depth)
+        gt_depths.append(depth_gt)
+    gt_depths = np.concatenate(gt_depths, axis=0)
+
+
+    pred_depths = np.concatenate(pred_depths,axis=0)
 
 
 
 
-        if "depth" in sub_dirs:
-            pred_depth = pred_depth.cpu()[:, 0].numpy()[0]
-            depth = cv2.resize(pred_depth, (full_width, full_height))
-            depth = np_normalize_image(depth)
-            cv2.imwrite(out_dir/"depth"/file_names[idx].replace('/','_'),depth*255)
-
-        if "disp" in sub_dirs:
-            pred_disp = pred_disp.cpu()[:, 0].numpy()[0]
-            disp = cv2.resize(pred_disp, (full_width, full_height))
-            disp = np_normalize_image(disp)
-
-            cv2.imwrite(out_dir/"disp"/file_names[idx].replace('/','_'),disp*255)
 
 
 
-        idx+=1
+
+    metrics = []
+    ratios=[]
+
+    for gt, pred in zip(gt_depths, pred_depths):
+        gt_height, gt_width = gt.shape[:2]
+        pred = cv2.resize(pred, (gt_width, gt_height))
+        # crop
+        # if test_dir.stem == "eigen" or test_dir.stem == 'custom':#???,可能是以前很老的
+        if opts['dataset']['type'] == "kitti":  # ???,可能是以前很老的
+            mask = np.logical_and(gt > MIN_DEPTH, gt < MAX_DEPTH)
+            crop = np.array(
+                [0.40810811 * gt_height, 0.99189189 * gt_height, 0.03594771 * gt_width, 0.96405229 * gt_width]).astype(
+                np.int32)
+            crop_mask = np.zeros(mask.shape)
+            crop_mask[crop[0]:crop[1], crop[2]:crop[3]] = 1
+            mask = np.logical_and(mask, crop_mask)
+        else:
+            mask = np.logical_and(gt > MIN_DEPTH, gt < MAX_DEPTH)
+
+
+        pred = pred[mask]  # 并reshape成1d
+        gt = gt[mask]
+
+        ratio = np.median(gt) / np.median(pred)  # 中位数， 在eval的时候， 将pred值线性变化，尽量能使与gt接近即可
+        ratios.append(ratio)
+        pred *= ratio
+
+        pred[pred < MIN_DEPTH] = MIN_DEPTH  # 所有历史数据中最小的depth, 更新,
+        pred[pred > MAX_DEPTH] = MAX_DEPTH  # ...
+        metric = compute_errors(gt, pred,mode=metric_mode)
+        metrics.append(metric)
+
+    metrics = np.array(metrics)
+    mean_metrics = np.mean(metrics, axis=0)
+
+    # print("\n  " + ("{:>8} | " * 7).format("abs_rel", "sq_rel", "rmse", "rmse_log", "a1", "a2", "a3"))
+    print(("&{: 8.3f}  " * 7).format(*mean_metrics.tolist()) + "\\\\")
+
+
+
+    ratios = np.array(ratios)
+    median = np.median(ratios)
+    print("\n Scaling ratios | med: {:0.3f} | std: {:0.3f}\n".format(median, np.std(ratios / median)))
+
+
+
 
 
 
@@ -215,7 +247,7 @@ def evaluate(opts):
 
 if __name__ == "__main__":
 
-    opts = YamlHandler('/home/roit/aws/aprojects/DeepSfMLearner/opts/fpv_infer.yaml').read_yaml()
+    opts = YamlHandler('/home/roit/aws/aprojects/DeepSfMLearner/opts/nyu_eval.yaml').read_yaml()
     # opts = YamlHandler('/home/roit/aws/aprojects/DeepSfMLearner/opts/mc_eval.yaml').read_yaml()
 
 

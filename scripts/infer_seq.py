@@ -1,3 +1,6 @@
+# /bin/python
+# 所有连续真
+
 from __future__ import absolute_import, division, print_function
 
 import cv2
@@ -17,7 +20,7 @@ import networks
 from tqdm import  tqdm
 from path import Path
 from utils.yaml_wrapper import YamlHandler
-from utils.assist import dataset_init_infer_dir,model_init_infer,reframe
+from utils.assist import dataset_init_infer_dir,model_init_infer,reframe,model_init
 from utils.official import np_normalize_image
 import matplotlib.pyplot as plt
 
@@ -109,7 +112,8 @@ def prediction(configs):
 
         #depth pass
         colors = reframe(component=components[0],inputs=inputs,frame_sides=frame_sides)
-
+        if colors ==None:
+            continue
         if paradigm == 'shared':
             features = models["encoder"](colors)#0:1611,1:1676
 
@@ -129,12 +133,12 @@ def prediction(configs):
         pred_depth = pred_depth.cpu()[:, 0].numpy()[0]
         depth = cv2.resize(pred_depth, (full_width, full_height))
         depth = np_normalize_image(depth)
-        cv2.imwrite(dump_path /"depth_{:05d}.png".format(idx), depth * 255)
+        # plt.imsave(dump_path /"depth_{:05d}.png".format(idx), depth * 255,cmap='plasma')
 
         pred_disp = pred_disp.cpu()[:, 0].numpy()[0]
         disp = cv2.resize(pred_disp, (full_width, full_height))
         disp = np_normalize_image(disp)
-        cv2.imwrite(dump_path /"disp_{:05d}.png".format(idx), disp * 255)
+        plt.imsave(dump_path /"disp_{:05d}.png".format(idx), disp * 255,cmap='plasma')
 
 
 
@@ -146,7 +150,7 @@ def prediction(configs):
 if __name__ == "__main__":
 
     # configs = YamlHandler('/home/roit/aws/aprojects/DeepSfMLearner/configs/kitti_eval.yaml').read_yaml()
-    configs = YamlHandler('/home/roit/aws/aprojects/DeepSfM/configs/bit.infer_dir.yaml').read_yaml()
+    configs = YamlHandler('/home/roit/aws/aprojects/DeepSfM/configs/kitti_infer_seq.yaml').read_yaml()
 
 
     prediction(configs)

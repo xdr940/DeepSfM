@@ -1,0 +1,31 @@
+model:
+  paradigm: 'shared' #shared,ind,spv,rebuild
+  components: ['3din','default','3din','fin-2out'] #[encoder,depth,posecnn]
+  load_paths:
+    depth_encoder: '/home/roit/st_ext4/models/DeepSfM/gnz-kitti/3ds-mono/0519_1409/models/weights_9/encoder.pth'
+#    depth_encoder: '/home/roit/models/monodepth2_official/mono_640x192/encoder.pth'
+#    depth: '/home/roit/models/monodepth2_official/mono_640x192/depth.pth'
+    depth: '/home/roit/st_ext4/models/DeepSfM/gnz-kitti/3ds-mono/0519_1409/models/weights_9/depth.pth'
+dataset:
+  type: 'custom_mono'
+  path: '/home/roit/test_out/kitti_testin'
+  num_workers: 1
+  batch_size: 1
+  full_width: 1242
+  full_height: 375
+
+dump_path: '/home/roit/test_out/kitti_pred/0519_1409'
+
+feed_height: 192 #same with feed height
+feed_width: 640
+
+disparity_smoothness: 0.1 #set manual
+
+device: ["cuda:0"]
+frame_sides: [-1,0,1]
+scales: [0,1,2,3]
+
+
+min_depth: 0.1
+max_depth: 100.0
+# for infer_seq.py

@@ -10,6 +10,15 @@ from datasets import KITTIRAWDataset
 from datasets import MCDataset
 from datasets import CustomMonoDataset
 
+def dict_update(dict):
+
+    keys = list(dict.keys()).copy()
+    for key in keys:
+        if 'encoder.' in key:
+            new_key = key.replace('encoder.','')
+            dict[new_key] =  dict.pop(key)
+
+    return dict
 def reframe(component,inputs,frame_sides,key='color_aug'):
     '''
 
@@ -20,6 +29,9 @@ def reframe(component,inputs,frame_sides,key='color_aug'):
     :return:
     '''
     if component =='3din':
+        if (key,frame_sides[0], 0) not in inputs.keys() or (key,frame_sides[2], 0) not in inputs.keys():
+            # first frame that have no pre frame
+            return
         colors = torch.cat([inputs[key,frame_sides[0], 0].unsqueeze(dim=2),
                                 inputs[key, frame_sides[1], 0].unsqueeze(dim=2),
                                 inputs[key,frame_sides[2], 0].unsqueeze(dim=2)],
@@ -45,7 +57,82 @@ def reframe(component,inputs,frame_sides,key='color_aug'):
     elif component =='1in':
         return  inputs[key, 0, 0]
 
-def model_init(opts):
+
+def model_init_infer(configs):
+    device = configs['device']
+
+    # local
+    model_opt = configs['model']
+    print("--> components:{}".format(model_opt['components']))
+    print("--> paradigm :{}".format(model_opt['paradigm']))
+
+    models = {}  # dict
+    components = model_opt['components']
+    paradigm = model_opt['paradigm']
+
+    if paradigm == 'spv':
+        pass
+    elif paradigm == 'shared':
+        models["encoder"] = networks.getEncoder(components[0])
+        models["depth"] = networks.getDepthDecoder(components[1])
+        models["pose"] = networks.getPoseDecoder(components[3])
+
+
+    elif paradigm == 'ind':
+        models["depth_encoder"] = networks.getEncoder(components[0])
+        models["depth"] = networks.getDepthDecoder(components[1])
+        if components[2] not in ['3din', '3in', '2in']:
+            models["pose"] = networks.getPoseCNN(components[2])
+        else:
+
+            models["pose_encoder"] = networks.getEncoder(components[2])
+            models["pose"] = networks.getPoseDecoder(components[3])
+
+        # encoder
+    # pre-trained model
+    encoder_path = configs['model']['load_paths']['depth_encoder']
+    decoder_path = configs['model']['load_paths']['depth']
+    encoder_dict = torch.load(encoder_path)
+
+    encoder_dict = torch.load(encoder_path)
+    encoder_dict = dict_update(encoder_dict)
+    src_decoder_dict = torch.load(decoder_path)
+
+        # load encoder dict
+    if 'depth_encoder' in models.keys():
+        model_dict = models["depth_encoder"].state_dict()
+        model_dict_ = {k: v for k, v in encoder_dict.items() if k in model_dict}
+        models["depth_encoder"].load_state_dict(model_dict_)
+        models["depth_encoder"].eval()
+
+    if 'encoder' in models.keys():
+        model_dict = models["encoder"].state_dict()
+        model_dict_ = {k: v for k, v in encoder_dict.items() if k in model_dict}
+        models["encoder"].load_state_dict(model_dict_)
+        models["encoder"].eval()
+
+        # load decoder dict
+        # 训练后解码器代码改过,key不对应,但是
+        # target_model_dict = models["depth"].state_dict()
+        # decoder_dict_={}
+        # for k1,k2 in zip(src_decoder_dict.keys(),target_model_dict.keys()):
+        #     decoder_dict_[k2] = src_decoder_dict[k1]
+    decoder_dict_ = {k: v for k, v in src_decoder_dict.items()}
+    models["depth"].load_state_dict(decoder_dict_)
+
+    models["depth"].eval()
+
+    # 声明所有可用设备
+    for name in models.keys():
+        models[name] = torch.nn.DataParallel(models[name], device_ids=list(range(len(device))))
+    # model device
+    for k, v in models.items():
+        models[k].to(device[0])
+
+    # params to train
+
+    return models
+def model_init(opts,mode='train'):
     # global
     device = opts['device']
 
@@ -82,6 +169,33 @@ def model_init(opts):
             models["pose"] = networks.getPoseDecoder(components[3])
 
         # encoder
+    # pre-trained model
+    if mode =='evaluate_depth':
+        encoder_path = opts['model']['load_paths']['depth_encoder']
+        decoder_path = opts['model']['load_paths']['depth']
+        encoder_dict = torch.load(encoder_path)
+
+        encoder_dict = torch.load(encoder_path)
+        encoder_dict = dict_update(encoder_dict)
+        src_decoder_dict = torch.load(decoder_path)
+
+        # load encoder dict
+        model_dict = models["depth_encoder"].state_dict()
+        model_dict_ = {k: v for k, v in encoder_dict.items() if k in model_dict}
+        models["depth_encoder"].load_state_dict(model_dict_)
+
+        # load decoder dict
+        #训练后解码器代码改过,key不对应,但是
+        # target_model_dict = models["depth"].state_dict()
+        # decoder_dict_={}
+        # for k1,k2 in zip(src_decoder_dict.keys(),target_model_dict.keys()):
+        #     decoder_dict_[k2] = src_decoder_dict[k1]
+        decoder_dict_ = {k: v for k, v in src_decoder_dict.items() }
+        models["depth"].load_state_dict(decoder_dict_)
+
+        models["depth"].eval()
+        models["depth_encoder"].eval()
+
 
     # 声明所有可用设备
     for name in models.keys():
@@ -132,6 +246,66 @@ def model_init(opts):
  
 
     return models, model_optimizer, model_lr_scheduler
+
+def dataset_init_infer_dir(configs):
+    feed_height = configs['feed_height']
+    scales = configs['scales']
+    feed_width = configs['feed_width']
+    dataset_configs = configs['dataset']
+    frame_sides = configs['frame_sides']
+    dirs_path = Path(dataset_configs['path'])
+    if not dirs_path.exists():
+        print('dir not exists')
+        exit(-1)
+    device = configs['device']
+    # local
+    datasets_dict = {"kitti": KITTIRAWDataset,
+                     # "kitti_odom": KITTIOdomDataset,
+                     "mc": MCDataset,
+                     "custom_mono": CustomMonoDataset}
+
+    if dataset_configs['type'] in datasets_dict.keys():
+        dataset = datasets_dict[dataset_configs['type']]  # 选择建立哪个类，这里kitti，返回构造函数句柄
+    else:
+        dataset = CustomMonoDataset
+
+
+
+    batch_size = dataset_configs['batch_size']
+    num_workers = dataset_configs['num_workers']
+
+    infer_file_names=[]
+    for dir in dirs_path.dirs():
+        seq = dir.files()
+        seq = [str(item.relpath(dirs_path)) for item in seq]
+        seq.sort()
+
+        infer_file_names+= seq
+    img_ext = '.png'
+
+    # train loader
+    infer_dataset = dataset(  # KITTIRAWData
+        data_path=dirs_path,
+        filenames=infer_file_names,
+        height=feed_height,
+        width=feed_width,
+        frame_sides=frame_sides,  # kitti[0,-1,1],mc[-1,0,1]
+        num_scales=len(scales),
+        mode="val"
+        # img_ext='.png'
+    )
+    infer_loader = DataLoader(  # train_datasets:KITTIRAWDataset
+        dataset=infer_dataset,
+        batch_size=batch_size * len(device),
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=True,
+        drop_last=True
+    )
+    # val loader
+
+    return infer_loader
+
 
 
 def dataset_init(opts):

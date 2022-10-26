@@ -27,12 +27,20 @@ class CustomMonoDataset(MonoDataset):
 
          #1920 * k[0] = 1371-> k0 = 0.714
         # 1080 * k[1 ]= 1371 -> k1 = 1.27
-        self.K=np.array([[0.714, 0, 0.5, 0],
-                           [0, 1.27, 0.5, 0],
+
+
+        #minavi
+        # self.K=np.array([[0.714, 0, 0.5, 0],
+        #                    [0, 1.27, 0.5, 0],
+        #                    [0, 0, 1, 0],
+        #                    [0, 0, 0, 1]], dtype=np.float32)
+
+
+        #kitti
+        self.K = np.array([[0.58, 0, 0.5, 0],
+                           [0, 1.92, 0.5, 0],
                            [0, 0, 1, 0],
                            [0, 0, 0, 1]], dtype=np.float32)
-
-
 
         #952/fx = tan 35 =0.7-> fx = 1360
 
@@ -98,8 +106,8 @@ class CustomMonoVoDataset(MonoDataset):
 
 if __name__ == '__main__':
     dataset = CustomMonoDataset(
-        data_path='/home/roit/datasets/VSD',
-        filenames=['uav0000077_00000_s/0000005.jpg','uav0000077_00000_s/0000022.jpg','uav0000077_00000_s/0000033.jpg'],
+        data_path='/home/roit/datasets/bit',
+        filenames=['001/00001.png','001/00002.png','001/00003.png'],
         height=320,
         width=384,
         frame_sides = [-1,0,1],

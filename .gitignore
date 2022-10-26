@@ -1,8 +1,6 @@
 #pycharm
 __pycache__
 .idea
-opts
-*.sh
 
 */__pycache__
 #splits

@@ -32,7 +32,7 @@ It attached with several function such as tensorboard, terminal progress bar, lo
 ```bash
 
 data.Dataset ->
-	mono_dataset_v2/MonoDataset - > 
+	mono_dataset/MonoDataset - > 
 		custom_mono/CustomMono
 		kitti_dataset_v2/KITTIRAWDataset
 		mc_dataset/MCDataset
@@ -219,3 +219,18 @@ metrics = compute_depth_errors(depth_gt, depth_pred)
     
 
 ```
+
+## inference
+
+```bash
+infer_seq.py # 给定一个连续帧的文件夹,输出相应深度
+
+
+```
+
+
+## 屎山问题
+
+- `infer_seq.py`中,输入文件夹组织应该是两级,输出一级,而且输入格式严格为`0001.png`
+- 很多训练的模型参数,尤其是decoder,不匹配导致无法加载, decoder和decoder2除了层名字不一样,其他一致
+- `shit\`里面有一些暂时不工作的脚本, 主要原因大概包括`networks`里网络和权重不匹配等

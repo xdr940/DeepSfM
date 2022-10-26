@@ -14,6 +14,7 @@ from networks.layers import disp2depth,disp_to_depth
 from utils.official import readlines
 import datasets
 import networks
+from utils.assist import model_init
 from tqdm import  tqdm
 from path import Path
 from utils.yaml_wrapper import YamlHandler
@@ -47,8 +48,8 @@ def dict_update(dict):
     return dict
 
 
-def model_init(model_path,mode):
-    encoder_path = model_path['encoder']
+def model_init_load(model_path,mode):
+    encoder_path = model_path['depth_encoder']
     decoder_path = model_path['depth']
 
     #model init
@@ -97,7 +98,7 @@ def evaluate(opts):
     feed_width = opts['feed_width']
     full_width = opts['dataset']['full_width']
     full_height = opts['dataset']['full_height']
-    metric_mode = opts['metric_mode']
+    metric_mode = 'median'
 
 
 
@@ -108,10 +109,11 @@ def evaluate(opts):
     data_path = Path(opts['dataset']['path'])
     lines = Path(opts['dataset']['split']['path'])/opts['dataset']['split']['test_file']
     model_path = opts['model']['load_paths']
-    encoder_mode = opts['model']['encoder_mode']
+    encoder_mode = opts['model']['components'][0]
     frame_sides = opts['frame_sides']
     # frame_prior,frame_now,frame_next =  opts['frame_sides']
-    encoder,decoder = model_init(model_path,mode=encoder_mode)
+    # encoder,decoder = model_init(opts)
+    models, model_optimizer, model_lr_scheduler= model_init(opts,mode='evaluate_depth')
     file_names = readlines(lines)
 
     print('-> dataset_path:{}'.format(data_path))
@@ -159,15 +161,16 @@ def evaluate(opts):
         input_color = input_color.cuda()
 
 
-        features = encoder(input_color)
-        disp = decoder(*features)
+        features =models["depth_encoder"](input_color)
+        features = tuple(features)
+        disp = models["depth"](*features)
 
-
+        disp=disp[0]
 
         depth_gt = data['depth_gt']
 
         pred_disp, pred_depth = disp_to_depth(disp,min_depth=MIN_DEPTH, max_depth=MAX_DEPTH)
-        #pred_depth = disp2depth(disp)
+        # pred_depth = disp2depth(disp)
 
         pred_depth = pred_depth.cpu()[:,0].numpy()
         depth_gt = depth_gt.cpu()[:,0].numpy()
@@ -244,7 +247,7 @@ def evaluate(opts):
 
 if __name__ == "__main__":
 
-    opts = YamlHandler('/home/roit/aws/aprojects/DeepSfMLearner/opts/mc_eval.yaml').read_yaml()
+    opts = YamlHandler('/home/roit/aws/aprojects/DeepSfM/configs/kitti.yaml').read_yaml()
     # opts = YamlHandler('/home/roit/aws/aprojects/DeepSfMLearner/opts/mc_eval.yaml').read_yaml()
 
 

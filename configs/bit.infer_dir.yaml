@@ -1,6 +1,6 @@
 model:
   paradigm: 'ind' #shared,ind,spv,rebuild
-  components: ['1in','default','3din','fin-2out'] #[encoder,depth,posecnn]
+  components: ['3din','default','3din','fin-2out'] #[encoder,depth,posecnn]
   load_paths:
     depth_encoder: '/home/roit/models/DeepSfM/mc/weights_14/depth_encoder.pth'
     depth: '/home/roit/models/DeepSfM/mc/weights_14/depth.pth'
@@ -12,7 +12,7 @@ dataset:
   full_width: 1024
   full_height: 768
 
-dump_path: '/home/roit/datasets/mc_pred'
+dump_path: '/home/roit/test_out/mc_pred'
 
 feed_height: 128 #same with feed height
 feed_width: 192

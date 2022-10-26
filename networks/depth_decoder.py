@@ -275,7 +275,7 @@ class DepthDecoder(nn.Module):
 
 def getDepthDecoder(components=1,mode='train'):
     if components =='default':
-        model = DepthDecoder(
+        model = DepthDecoder2(
             num_ch_enc=[64,64,128,256,512],
             scales=[0,1,2,3],
             mode=mode
